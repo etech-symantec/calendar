@@ -62,7 +62,7 @@ def run(playwright):
     except Exception:
         table_html = page.locator('table').first.inner_html(timeout=5000)
     
-    # 5. 결과를 담은 웹페이지(index.html) 생성 (여기서부터 아래를 통째로 교체하세요!)
+    # 5. 결과를 담은 웹페이지(index.html) 생성
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     html_template = """
@@ -76,74 +76,91 @@ def run(playwright):
             h2 { border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
             .sync-time { color: #6c757d; font-size: 14px; margin-bottom: 30px; }
             
-            /* 예쁘게 가공할 날짜별 그룹 스타일 */
+            /* 가공된 날짜별 그룹 스타일 */
             .date-group { margin-bottom: 30px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
             .date-header { background-color: #0056b3; color: white; padding: 12px 20px; font-size: 16px; font-weight: bold; }
             .styled-table { width: 100%; border-collapse: collapse; }
             .styled-table th, .styled-table td { border: 1px solid #eee; padding: 12px 20px; text-align: left; font-size: 14px; }
-            .styled-table th { background-color: #f4f6f9; color: #495057; }
+            .styled-table th { background-color: #f4f6f9; color: #495057; font-weight: 600; }
             .styled-table tr:hover { background-color: #fcfcfc; }
             
-            /* 원본 테이블은 화면에서 숨김 */
-            #raw-table { display: none; }
+            /* 에러 시 보여줄 원본 표 스타일 */
+            #raw-table table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; font-size: 14px; text-align: left; }
+            #raw-table th, #raw-table td { border: 1px solid #ccc; padding: 10px; }
         </style>
     </head>
     <body>
         <h2>📅 업데이트된 공유 일정 목록</h2>
         <p class="sync-time">마지막 동기화: {kst_now}</p>
         
-        <div id="raw-table">
-            {table_html}
-        </div>
-
         <div id="grouped-container"></div>
+
+        <div id="raw-table" style="display: none;">
+            <table id="source-table">
+                {table_html}
+            </table>
+        </div>
 
         <script>
             document.addEventListener("DOMContentLoaded", function() {
-                const rawTable = document.querySelector("#raw-table table");
-                if (!rawTable) return;
-
-                const rows = Array.from(rawTable.querySelectorAll("tr"));
-                if (rows.length < 2) return; // 데이터가 없으면 종료
-
-                // 1. 헤더(th) 추출
-                const headerRow = rows[0];
-                const headers = Array.from(headerRow.querySelectorAll("th, td")).map(el => el.innerText.trim());
-                
-                // 2. '일자' 또는 '날짜'가 적힌 열(Column)의 순서 찾기 (못 찾으면 기본값으로 2번째 열 선택)
-                let dateIdx = headers.findIndex(h => h.includes("일자") || h.includes("일시") || h.includes("기간") || h.includes("날짜"));
-                if (dateIdx === -1) dateIdx = 1; 
-
-                // 3. 데이터 그룹화 작업
-                const groupedData = {};
-                for (let i = 1; i < rows.length; i++) {
-                    const cells = rows[i].querySelectorAll("td");
-                    if (cells.length > 0) {
-                        let dateText = cells[dateIdx] ? cells[dateIdx].innerText.trim() : "날짜 없음";
-                        // 날짜 텍스트 안에 줄바꿈이 있다면 첫 줄만 깔끔하게 추출
-                        dateText = dateText.split('\\n')[0].trim();
-
-                        if (!groupedData[dateText]) {
-                            groupedData[dateText] = [];
-                        }
-                        // 원본 행의 안쪽 HTML을 그대로 복사하여 저장
-                        groupedData[dateText].push(rows[i].innerHTML);
+                try {
+                    const rawTable = document.getElementById("source-table");
+                    const rows = Array.from(rawTable.querySelectorAll("tr"));
+                    
+                    // 데이터가 없는 경우 안전장치: 원본 테이블 강제 표시
+                    if (rows.length < 2) {
+                        document.getElementById("grouped-container").innerHTML = "<p><b>💡 분류할 데이터가 부족하여 원본 표를 그대로 표시합니다.</b></p>";
+                        document.getElementById("raw-table").style.display = "block";
+                        return;
                     }
-                }
 
-                // 4. 화면에 그리기
-                const container = document.getElementById("grouped-container");
-                for (const [date, trHTMLs] of Object.entries(groupedData)) {
-                    const dateBlock = document.createElement("div");
-                    dateBlock.className = "date-group";
+                    // 1. 헤더(th) 추출
+                    const headerRow = rows[0];
+                    const headers = Array.from(headerRow.querySelectorAll("th, td")).map(el => el.innerText.trim());
                     
-                    const headerHTML = `<div class="date-header">📆 ${date}</div>`;
-                    const tableHead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
-                    const tableBody = `<tbody><tr>${trHTMLs.join("</tr><tr>")}</tr></tbody>`;
-                    const tableHTML = `<table class="styled-table">${tableHead}${tableBody}</table>`;
-                    
-                    dateBlock.innerHTML = headerHTML + tableHTML;
-                    container.appendChild(dateBlock);
+                    // 2. '일자' 관련 열 찾기
+                    let dateIdx = headers.findIndex(h => h.includes("일자") || h.includes("일시") || h.includes("기간") || h.includes("날짜"));
+                    if (dateIdx === -1) dateIdx = 1; // 못 찾으면 기본 2번째 열
+
+                    // 3. 데이터 그룹화 작업
+                    const groupedData = {};
+                    let hasValidData = false;
+
+                    for (let i = 1; i < rows.length; i++) {
+                        const cells = rows[i].querySelectorAll("td");
+                        if (cells.length > 0) {
+                            hasValidData = true;
+                            let dateText = cells[dateIdx] ? cells[dateIdx].innerText.trim() : "날짜 없음";
+                            dateText = dateText.split('\\n')[0].trim(); // 첫 줄만 사용
+
+                            if (!groupedData[dateText]) {
+                                groupedData[dateText] = [];
+                            }
+                            groupedData[dateText].push(rows[i].innerHTML);
+                        }
+                    }
+
+                    if (!hasValidData) throw new Error("유효한 표 데이터를 찾을 수 없습니다.");
+
+                    // 4. 화면에 그리기
+                    const container = document.getElementById("grouped-container");
+                    for (const [date, trHTMLs] of Object.entries(groupedData)) {
+                        const dateBlock = document.createElement("div");
+                        dateBlock.className = "date-group";
+                        
+                        const headerHTML = `<div class="date-header">📆 ${date}</div>`;
+                        const tableHead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
+                        const tableBody = `<tbody><tr>${trHTMLs.join("</tr><tr>")}</tr></tbody>`;
+                        const tableHTML = `<table class="styled-table">${tableHead}${tableBody}</table>`;
+                        
+                        dateBlock.innerHTML = headerHTML + tableHTML;
+                        container.appendChild(dateBlock);
+                    }
+                } catch (error) {
+                    console.error("데이터 분류 중 에러 발생:", error);
+                    // 에러 발생 시 안전장치: 에러 메시지와 함께 원본 표 표시
+                    document.getElementById("grouped-container").innerHTML = "<p><b style='color:#d9534f;'>⚠️ 데이터를 예쁘게 꾸미는 중 문제가 발생하여 원본 표를 표시합니다.</b></p>";
+                    document.getElementById("raw-table").style.display = "block";
                 }
             });
         </script>
@@ -151,10 +168,8 @@ def run(playwright):
     </html>
     """
 
-    # 치환자({kst_now}, {table_html})에 실제 변수 값을 안전하게 밀어넣기
     final_html = html_template.replace("{kst_now}", kst_now).replace("{table_html}", table_html)
 
-    # index.html 파일 쓰기
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(final_html)
         
