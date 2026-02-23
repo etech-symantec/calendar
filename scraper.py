@@ -72,30 +72,32 @@ def run(playwright):
         <meta charset="UTF-8">
         <title>그룹웨어 일정목록</title>
         <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; padding: 20px; color: #333; }
-            h2 { border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
-            .sync-time { color: #6c757d; font-size: 14px; margin-bottom: 30px; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 20px; color: #333; }
+            h2 { border-bottom: 3px solid #2c3e50; padding-bottom: 10px; color: #2c3e50; }
+            .sync-time { color: #7f8c8d; font-size: 14px; margin-bottom: 30px; font-weight: 500; }
             
             /* 가공된 날짜별 그룹 스타일 */
-            .date-group { margin-bottom: 30px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
-            .date-header { background-color: #0056b3; color: white; padding: 12px 20px; font-size: 16px; font-weight: bold; }
+            .date-group { margin-bottom: 35px; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; }
+            .date-header { background-color: #34495e; color: white; padding: 14px 20px; font-size: 17px; font-weight: bold; letter-spacing: 0.5px; }
             .styled-table { width: 100%; border-collapse: collapse; }
-            .styled-table th, .styled-table td { border: 1px solid #eee; padding: 12px 20px; text-align: left; font-size: 14px; }
-            .styled-table th { background-color: #f4f6f9; color: #495057; font-weight: 600; }
-            .styled-table tr:hover { background-color: #fcfcfc; }
+            .styled-table th, .styled-table td { border-bottom: 1px solid #eee; padding: 14px 20px; text-align: left; font-size: 14.5px; }
+            .styled-table th { background-color: #f8fafc; color: #34495e; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+            .styled-table tr:last-child td { border-bottom: none; }
+            .styled-table tr:hover { background-color: #f1f5f9; transition: background 0.2s; }
             
-            /* 에러 시 보여줄 원본 표 스타일 */
-            #raw-table table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; font-size: 14px; text-align: left; }
+            /* 원본 테이블 숨김 */
+            #raw-table { display: none; }
+            #raw-table table { width: 100%; border-collapse: collapse; background: #fff; }
             #raw-table th, #raw-table td { border: 1px solid #ccc; padding: 10px; }
         </style>
     </head>
     <body>
-        <h2>📅 업데이트된 공유 일정 목록</h2>
-        <p class="sync-time">마지막 동기화: {kst_now}</p>
+        <h2>📅 공유 일정 목록</h2>
+        <p class="sync-time">🔄 마지막 동기화: {kst_now}</p>
         
         <div id="grouped-container"></div>
 
-        <div id="raw-table" style="display: none;">
+        <div id="raw-table">
             <table id="source-table">
                 {table_html}
             </table>
@@ -104,62 +106,97 @@ def run(playwright):
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 try {
-                    const rawTable = document.getElementById("source-table");
-                    const rows = Array.from(rawTable.querySelectorAll("tr"));
+                    // 원본 테이블 요소 찾기
+                    const rawTable = document.getElementById("source-table").querySelector("table") || document.getElementById("source-table");
+                    const trs = Array.from(rawTable.querySelectorAll("tr"));
                     
-                    // 데이터가 없는 경우 안전장치: 원본 테이블 강제 표시
-                    if (rows.length < 2) {
-                        document.getElementById("grouped-container").innerHTML = "<p><b>💡 분류할 데이터가 부족하여 원본 표를 그대로 표시합니다.</b></p>";
-                        document.getElementById("raw-table").style.display = "block";
-                        return;
-                    }
+                    if (trs.length < 2) throw new Error("데이터가 없습니다.");
 
-                    // 1. 헤더(th) 추출
-                    const headerRow = rows[0];
-                    const headers = Array.from(headerRow.querySelectorAll("th, td")).map(el => el.innerText.trim());
-                    
-                    // 2. '일자' 관련 열 찾기
-                    let dateIdx = headers.findIndex(h => h.includes("일자") || h.includes("일시") || h.includes("기간") || h.includes("날짜"));
-                    if (dateIdx === -1) dateIdx = 1; // 못 찾으면 기본 2번째 열
-
-                    // 3. 데이터 그룹화 작업
-                    const groupedData = {};
-                    let hasValidData = false;
-
-                    for (let i = 1; i < rows.length; i++) {
-                        const cells = rows[i].querySelectorAll("td");
-                        if (cells.length > 0) {
-                            hasValidData = true;
-                            let dateText = cells[dateIdx] ? cells[dateIdx].innerText.trim() : "날짜 없음";
-                            dateText = dateText.split('\\n')[0].trim(); // 첫 줄만 사용
-
-                            if (!groupedData[dateText]) {
-                                groupedData[dateText] = [];
+                    // 1단계: 병합된 셀(rowspan, colspan)을 완벽한 바둑판(2차원 배열)으로 펼치기
+                    const grid = [];
+                    for (let r = 0; r < trs.length; r++) {
+                        const tds = trs[r].querySelectorAll("th, td");
+                        let c = 0;
+                        for (let i = 0; i < tds.length; i++) {
+                            // 위에서 병합되어 내려온 빈 공간 건너뛰기
+                            while (grid[r] && grid[r][c]) c++; 
+                            
+                            const td = tds[i];
+                            const rowspan = parseInt(td.getAttribute("rowspan") || "1", 10);
+                            const colspan = parseInt(td.getAttribute("colspan") || "1", 10);
+                            const content = td.innerHTML; // 셀 안의 HTML(버튼, 링크 등) 그대로 복사
+                            
+                            // 병합된 크기만큼 grid에 데이터 채워넣기
+                            for (let rr = 0; rr < rowspan; rr++) {
+                                for (let cc = 0; cc < colspan; cc++) {
+                                    if (!grid[r + rr]) grid[r + rr] = [];
+                                    grid[r + rr][c + cc] = content;
+                                }
                             }
-                            groupedData[dateText].push(rows[i].innerHTML);
+                            c += colspan;
                         }
                     }
 
-                    if (!hasValidData) throw new Error("유효한 표 데이터를 찾을 수 없습니다.");
+                    // 2단계: 헤더(제목줄) 추출 및 '날짜' 열 위치 찾기
+                    const headers = grid[0].map(html => {
+                        const tmp = document.createElement("div");
+                        tmp.innerHTML = html;
+                        return tmp.innerText.trim();
+                    });
+                    
+                    let dateIdx = headers.findIndex(h => h.includes("일자") || h.includes("일시") || h.includes("기간") || h.includes("날짜"));
+                    if (dateIdx === -1) dateIdx = 1; // 기본값: 2번째 열
 
-                    // 4. 화면에 그리기
+                    // 3단계: 바둑판 데이터를 날짜별로 그룹화
+                    const groupedData = {};
+                    for (let r = 1; r < grid.length; r++) {
+                        const rowData = grid[r];
+                        if (!rowData || rowData.length === 0) continue;
+                        
+                        // 날짜 텍스트 깔끔하게 정제
+                        const tmpDate = document.createElement("div");
+                        tmpDate.innerHTML = rowData[dateIdx] || "날짜 없음";
+                        let dateText = tmpDate.innerText.trim().split('\\n')[0]; 
+                        if (!dateText) dateText = "분류 안 됨";
+
+                        if (!groupedData[dateText]) groupedData[dateText] = [];
+                        groupedData[dateText].push(rowData);
+                    }
+
+                    // 4단계: 날짜별로 예쁜 카드 형태의 새 테이블 그려주기
                     const container = document.getElementById("grouped-container");
-                    for (const [date, trHTMLs] of Object.entries(groupedData)) {
+                    for (const [date, rows] of Object.entries(groupedData)) {
                         const dateBlock = document.createElement("div");
                         dateBlock.className = "date-group";
                         
-                        const headerHTML = `<div class="date-header">📆 ${date}</div>`;
-                        const tableHead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
-                        const tableBody = `<tbody><tr>${trHTMLs.join("</tr><tr>")}</tr></tbody>`;
-                        const tableHTML = `<table class="styled-table">${tableHead}${tableBody}</table>`;
+                        const headerHTML = `<div class="date-header">🗓️ ${date}</div>`;
+                        
+                        // 새 테이블 헤더 생성 (날짜 열은 제목에 썼으므로 숨김)
+                        let tableHeadHTML = "<tr>";
+                        headers.forEach((h, i) => {
+                            if (i !== dateIdx) tableHeadHTML += `<th>${h}</th>`;
+                        });
+                        tableHeadHTML += "</tr>";
+
+                        // 새 테이블 본문 데이터 생성
+                        let tableBodyHTML = "";
+                        rows.forEach(rowData => {
+                            tableBodyHTML += "<tr>";
+                            rowData.forEach((cellHtml, i) => {
+                                if (i !== dateIdx) tableBodyHTML += `<td>${cellHtml}</td>`;
+                            });
+                            tableBodyHTML += "</tr>";
+                        });
+
+                        const tableHTML = `<table class="styled-table"><thead>${tableHeadHTML}</thead><tbody>${tableBodyHTML}</tbody></table>`;
                         
                         dateBlock.innerHTML = headerHTML + tableHTML;
                         container.appendChild(dateBlock);
                     }
                 } catch (error) {
-                    console.error("데이터 분류 중 에러 발생:", error);
-                    // 에러 발생 시 안전장치: 에러 메시지와 함께 원본 표 표시
-                    document.getElementById("grouped-container").innerHTML = "<p><b style='color:#d9534f;'>⚠️ 데이터를 예쁘게 꾸미는 중 문제가 발생하여 원본 표를 표시합니다.</b></p>";
+                    // 에러 발생 시 원본 테이블 강제 노출 (안전장치)
+                    console.error("데이터 분류 에러:", error);
+                    document.getElementById("grouped-container").innerHTML = "<p><b style='color:#e74c3c;'>⚠️ 표 구조가 특이하여 원본 형태로 표시합니다.</b></p>";
                     document.getElementById("raw-table").style.display = "block";
                 }
             });
