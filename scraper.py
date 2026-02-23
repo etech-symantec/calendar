@@ -44,38 +44,56 @@ def run(playwright):
     print("일정목록 데이터 불러오는 중...")
     time.sleep(5)
     
-    print("5. 화면 원본 데이터 100% 추출 중...")
+    print("5. 지정된 영역 추출 및 테두리 생성 중...")
     
-    # 표만 가져오는 게 아니라, iframe(액자) 안의 <body> 태그 전체 내용을 긁어옵니다!
     raw_html = ""
     try:
         raw_html = frame.locator('body').inner_html(timeout=5000)
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
+    # ✂️ 문자열 자르기 로직
+    # 만약 화면에 연도가 "2026"이라고 표시된다면 아래 start_keyword를 화면에 보이는 실제 텍스트로 맞춰주세요.
+    start_keyword = "2026" 
+    end_keyword = "일정등록"
+    
+    extracted_html = raw_html
+    
+    # 1. '2026'(또는 지정한 키워드)이 있는 곳부터 끝까지만 남김
+    if start_keyword in extracted_html:
+        extracted_html = extracted_html[extracted_html.find(start_keyword):]
+        
+    # 2. '일정등록' 글자가 있는 곳 앞까지만 딱 남김
+    if end_keyword in extracted_html:
+        extracted_html = extracted_html[:extracted_html.find(end_keyword)]
+    
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # CSS나 자바스크립트 없이, 긁어온 원본만 덜렁 보여주는 가장 단순한 형태
+    # CSS 테두리 강제 주입 (!important 사용)
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <title>원본 화면 디버깅</title>
+        <title>일정목록 추출</title>
         <style>
-            body {{ padding: 20px; }}
-            .debug-header {{ border: 2px solid red; padding: 10px; margin-bottom: 20px; font-weight: bold; }}
-            /* 원본 표가 너무 커서 잘리지 않게 스크롤 추가 */
-            .content-wrapper {{ overflow: auto; border: 1px solid #ccc; padding: 10px; }}
+            body {{ font-family: sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }}
+            h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
+            .sync-time {{ color: #7f8c8d; font-size: 13px; margin-bottom: 20px; }}
+            
+            /* 🔥 무조건 테두리가 보이게 강제하는 마법의 CSS */
+            .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; }}
+            table {{ border-collapse: collapse !important; width: 100% !important; }}
+            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; }}
+            th {{ background-color: #e2e8f0 !important; font-weight: bold !important; }}
         </style>
     </head>
     <body>
-        <div class="debug-header">
-            🚨 디버깅 모드: 가공되지 않은 100% 원본 화면입니다. (추출 시간: {kst_now})
-        </div>
+        <h2>📅 지정 영역 추출 결과</h2>
+        <p class="sync-time">마지막 동기화: {kst_now}</p>
         
-        <div class="content-wrapper">
-            {raw_html}
+        <div class="table-container">
+            {extracted_html}
         </div>
     </body>
     </html>
