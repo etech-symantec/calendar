@@ -52,8 +52,9 @@ def run(playwright):
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
-    # 핵심 데이터 영역만 깔끔하게 도려내기
-    start_keyword = "2026년" 
+    # 🌟 핵심 변경 부분: 현재 연도를 자동으로 가져와서 '년'을 붙임
+    current_year = datetime.now().year
+    start_keyword = f"{current_year}년" 
     end_keyword = "일정등록"
     
     extracted_html = raw_html
@@ -64,7 +65,6 @@ def run(playwright):
     
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 🎨 자바스크립트 조작 없이, CSS만으로 원본 표를 아름답게 꾸미는 템플릿
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -100,11 +100,9 @@ def run(playwright):
                 box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
                 border: 1px solid var(--border-light);
                 overflow-x: auto;
-                /* 데이터가 많아도 제목줄이 고정되도록 스크롤 영역 설정 */
                 max-height: 70vh; 
             }}
             
-            /* 🔥 원본 태그의 인라인 스타일을 무시하고 강제로 예쁜 디자인 주입 (!important) */
             table {{
                 width: 100% !important;
                 border-collapse: collapse !important;
@@ -121,13 +119,11 @@ def run(playwright):
                 background-color: var(--header-bg) !important;
                 color: #1e293b !important;
                 font-weight: 700 !important;
-                /* 스크롤 시 상단에 제목줄 고정 */
                 position: sticky;
                 top: 0;
                 z-index: 10;
                 box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             }}
-            /* 마우스 올렸을 때 하이라이트 효과 (칸이 병합되어 있어도 td 단위로 반응) */
             td:hover {{
                 background-color: var(--hover-bg) !important;
                 cursor: default;
