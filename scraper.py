@@ -62,33 +62,101 @@ def run(playwright):
     except Exception:
         table_html = page.locator('table').first.inner_html(timeout=5000)
     
+    # 5. 결과를 담은 웹페이지(index.html) 생성 (여기서부터 아래를 통째로 교체하세요!)
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    html_template = f"""
+    html_template = """
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
         <title>그룹웨어 일정목록</title>
         <style>
-            body {{ font-family: sans-serif; padding: 20px; }}
-            table {{ border-collapse: collapse; width: 100%; margin-top: 20px; font-size: 14px; text-align: left; }}
-            th, td {{ border: 1px solid #ddd; padding: 10px; }}
-            th {{ background-color: #f4f6f9; }}
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; padding: 20px; color: #333; }
+            h2 { border-bottom: 2px solid #0056b3; padding-bottom: 10px; }
+            .sync-time { color: #6c757d; font-size: 14px; margin-bottom: 30px; }
+            
+            /* 예쁘게 가공할 날짜별 그룹 스타일 */
+            .date-group { margin-bottom: 30px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); overflow: hidden; }
+            .date-header { background-color: #0056b3; color: white; padding: 12px 20px; font-size: 16px; font-weight: bold; }
+            .styled-table { width: 100%; border-collapse: collapse; }
+            .styled-table th, .styled-table td { border: 1px solid #eee; padding: 12px 20px; text-align: left; font-size: 14px; }
+            .styled-table th { background-color: #f4f6f9; color: #495057; }
+            .styled-table tr:hover { background-color: #fcfcfc; }
+            
+            /* 원본 테이블은 화면에서 숨김 */
+            #raw-table { display: none; }
         </style>
     </head>
     <body>
-        <h2>업데이트된 공유 일정 목록</h2>
-        <p>마지막 동기화: {kst_now}</p>
-        <table>
+        <h2>📅 업데이트된 공유 일정 목록</h2>
+        <p class="sync-time">마지막 동기화: {kst_now}</p>
+        
+        <div id="raw-table">
             {table_html}
-        </table>
+        </div>
+
+        <div id="grouped-container"></div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const rawTable = document.querySelector("#raw-table table");
+                if (!rawTable) return;
+
+                const rows = Array.from(rawTable.querySelectorAll("tr"));
+                if (rows.length < 2) return; // 데이터가 없으면 종료
+
+                // 1. 헤더(th) 추출
+                const headerRow = rows[0];
+                const headers = Array.from(headerRow.querySelectorAll("th, td")).map(el => el.innerText.trim());
+                
+                // 2. '일자' 또는 '날짜'가 적힌 열(Column)의 순서 찾기 (못 찾으면 기본값으로 2번째 열 선택)
+                let dateIdx = headers.findIndex(h => h.includes("일자") || h.includes("일시") || h.includes("기간") || h.includes("날짜"));
+                if (dateIdx === -1) dateIdx = 1; 
+
+                // 3. 데이터 그룹화 작업
+                const groupedData = {};
+                for (let i = 1; i < rows.length; i++) {
+                    const cells = rows[i].querySelectorAll("td");
+                    if (cells.length > 0) {
+                        let dateText = cells[dateIdx] ? cells[dateIdx].innerText.trim() : "날짜 없음";
+                        // 날짜 텍스트 안에 줄바꿈이 있다면 첫 줄만 깔끔하게 추출
+                        dateText = dateText.split('\\n')[0].trim();
+
+                        if (!groupedData[dateText]) {
+                            groupedData[dateText] = [];
+                        }
+                        // 원본 행의 안쪽 HTML을 그대로 복사하여 저장
+                        groupedData[dateText].push(rows[i].innerHTML);
+                    }
+                }
+
+                // 4. 화면에 그리기
+                const container = document.getElementById("grouped-container");
+                for (const [date, trHTMLs] of Object.entries(groupedData)) {
+                    const dateBlock = document.createElement("div");
+                    dateBlock.className = "date-group";
+                    
+                    const headerHTML = `<div class="date-header">📆 ${date}</div>`;
+                    const tableHead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
+                    const tableBody = `<tbody><tr>${trHTMLs.join("</tr><tr>")}</tr></tbody>`;
+                    const tableHTML = `<table class="styled-table">${tableHead}${tableBody}</table>`;
+                    
+                    dateBlock.innerHTML = headerHTML + tableHTML;
+                    container.appendChild(dateBlock);
+                }
+            });
+        </script>
     </body>
     </html>
     """
 
+    # 치환자({kst_now}, {table_html})에 실제 변수 값을 안전하게 밀어넣기
+    final_html = html_template.replace("{kst_now}", kst_now).replace("{table_html}", table_html)
+
+    # index.html 파일 쓰기
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(html_template)
+        f.write(final_html)
         
     print("✅ 성공적으로 index.html을 생성했습니다!")
     browser.close()
