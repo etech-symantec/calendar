@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from playwright.sync_api import sync_playwright
 from datetime import datetime
 
@@ -53,23 +54,34 @@ def run(playwright):
         raw_html = page.locator('body').inner_html(timeout=5000)
     
     # ✂️ 문자열 자르기 로직
-    current_year = datetime.now().year
+    now = datetime.now()
+    current_year = now.year
     start_keyword = f"{current_year}년" 
     end_keyword = "일정등록"
     
     extracted_html = raw_html
     
-    # 1. '2026'(또는 지정한 키워드)이 있는 곳부터 끝까지만 남김
     if start_keyword in extracted_html:
         extracted_html = extracted_html[extracted_html.find(start_keyword):]
         
-    # 2. '일정등록' 글자가 있는 곳 앞까지만 딱 남김
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
     
-    kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
 
-    # CSS 테두리 강제 주입 및 JS 오늘 일정 하이라이트 추가
+    # ⭐️ 띄어쓰기를 뺀 모든 경우의 수 날짜 포맷 (예: 2026.02.23, 2월23일 등)
+    yyyy, m, d = str(now.year), str(now.month), str(now.day)
+    mm, dd = f"{now.month:02d}", f"{now.day:02d}"
+    
+    today_formats = [
+        f"{yyyy}-{mm}-{dd}", f"{yyyy}.{mm}.{dd}", f"{yyyy}/{mm}/{dd}",
+        f"{yyyy}-{m}-{d}", f"{yyyy}.{m}.{d}", f"{yyyy}/{m}/{d}",
+        f"{mm}-{dd}", f"{mm}.{dd}", f"{mm}/{dd}",
+        f"{m}-{d}", f"{m}.{d}", f"{m}/{d}",
+        f"{m}월{d}일", f"{mm}월{dd}일"
+    ]
+    today_js_array = json.dumps(today_formats)
+
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -81,14 +93,12 @@ def run(playwright):
             h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
             .sync-time {{ color: #7f8c8d; font-size: 13px; margin-bottom: 20px; }}
             
-            /* 🔥 상단 오늘 일정 요약 박스 디자인 */
             .summary-box {{ background: #fff; border-left: 5px solid #e11d48; padding: 20px; margin-bottom: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}
             .summary-box h3 {{ margin: 0 0 10px 0; color: #e11d48; font-size: 18px; }}
             .summary-box ul {{ margin: 0; padding-left: 20px; line-height: 1.6; color: #333; }}
             .summary-box li {{ padding: 6px 0; border-bottom: 1px dashed #fecdd3; }}
             .summary-box li:last-child {{ border-bottom: none; }}
 
-            /* 🔥 무조건 테두리가 보이게 강제하는 마법의 CSS */
             .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; }}
             table {{ border-collapse: collapse !important; width: 100% !important; }}
             table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; }}
@@ -112,52 +122,51 @@ def run(playwright):
 
         <script>
             document.addEventListener("DOMContentLoaded", function() {{
-                // 1. 오늘 날짜 포맷 준비 (접속한 날짜 기준)
-                const today = new Date();
-                const m = today.getMonth() + 1;
-                const d = today.getDate();
-                const mm = String(m).padStart(2, '0');
-                const dd = String(d).padStart(2, '0');
-
-                // 그룹웨어에서 사용할 법한 모든 날짜 형식을 배열로 준비
-                const todayFormats = [
-                    `${{m}}월 ${{d}}일`, `${{m}}월${{d}}일`, 
-                    `${{mm}}-${{dd}}`, `${{mm}}.${{dd}}`, `${{mm}}/${{dd}}`,
-                    `${{m}}-${{d}}`, `${{m}}.${{d}}`, `${{m}}/${{d}}`
-                ];
+                const todayFormats = {today_js_array};
+                
+                // 🔥 띄어쓰기를 전부 없애버리고 매칭하는 무적의 검사 함수
+                const isToday = (text) => {{
+                    if(!text) return false;
+                    const cleanText = text.replace(/\\s+/g, ''); 
+                    return todayFormats.some(fmt => cleanText.includes(fmt));
+                }};
 
                 const rows = document.querySelectorAll('.table-container tr');
                 let todayEvents = [];
-                let highlightCounter = 0; // rowspan(병합된 칸)을 계산하기 위한 카운터
+                let highlightCounter = 0; 
 
-                // 2. 표 전체를 한 줄씩 돌면서 오늘 날짜 검사
                 rows.forEach(row => {{
+                    // 제목줄(헤더)은 검사에서 제외
+                    if (row.querySelectorAll('td').length === 0) return;
+
                     const cells = row.querySelectorAll('th, td');
-                    
+                    let foundTodayInThisRow = false;
+                    let maxRowSpan = 1;
+
+                    // 줄 안의 '모든 칸'을 검사하여 하나라도 오늘 날짜가 있으면 당첨!
                     cells.forEach(cell => {{
-                        const text = cell.innerText.trim();
-                        const isToday = todayFormats.some(fmt => text.includes(fmt));
-                        
-                        // 이 줄에서 오늘 날짜를 발견했다면?
-                        if (isToday) {{
-                            const rowspan = parseInt(cell.getAttribute('rowspan') || '1', 10);
-                            highlightCounter = rowspan; // 합쳐진 칸의 개수만큼 하이라이트 횟수 충전!
+                        if (isToday(cell.innerText)) {{
+                            foundTodayInThisRow = true;
+                            const rs = parseInt(cell.getAttribute('rowspan') || '1', 10);
+                            if (rs > maxRowSpan) maxRowSpan = rs;
                         }}
                     }});
 
-                    // 3. 오늘 일정에 해당하는 줄이라면 (발견된 줄이거나 병합된 칸의 영향권 안)
+                    if (foundTodayInThisRow) {{
+                        highlightCounter = maxRowSpan; 
+                    }}
+
+                    // 오늘 일정 범위 안에 들어온 줄이라면 추출 및 하이라이트
                     if (highlightCounter > 0) {{
-                        // 원본 표의 해당 줄 하이라이트 칠하기 (배경 핑크색, 글자 진하게)
                         row.querySelectorAll('td, th').forEach(c => {{
                             c.style.backgroundColor = '#fff1f2';
                             c.style.color = '#9f1239';
                             c.style.fontWeight = 'bold';
                         }});
 
-                        // 상단 요약본에 넣을 텍스트 추출 (td 내용만 합치기)
                         let rowData = [];
                         row.querySelectorAll('td').forEach(c => {{
-                            const txt = c.innerText.trim().replace(/\\n/g, ' '); // 줄바꿈 제거
+                            const txt = c.innerText.trim().replace(/\\s+/g, ' '); 
                             if(txt) rowData.push(txt);
                         }});
                         
@@ -165,11 +174,10 @@ def run(playwright):
                             todayEvents.push(rowData.join(' | '));
                         }}
                         
-                        highlightCounter--; // 한 줄 처리했으니 카운터 차감
+                        highlightCounter--; 
                     }}
                 }});
 
-                // 4. 상단 요약 박스 업데이트
                 const ul = document.getElementById('today-list');
                 ul.innerHTML = '';
                 
