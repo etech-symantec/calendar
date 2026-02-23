@@ -53,7 +53,7 @@ def run(playwright):
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
-    # ✂️ 문자열 자르기 로직
+    # ✂️ 상단 스크린샷 찌꺼기 완벽 제거 로직 복구
     now = datetime.now()
     current_year = now.year
     start_keyword = f"{current_year}년" 
@@ -61,13 +61,26 @@ def run(playwright):
     
     extracted_html = raw_html
     
-    if start_keyword in extracted_html:
-        extracted_html = extracted_html[extracted_html.find(start_keyword):]
-        
+    # 꼬리 자르기
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
+        
+    # 머리(찌꺼기) 자르기
+    year_idx = extracted_html.find(start_keyword)
+    if year_idx != -1:
+        after_year_html = extracted_html[year_idx:]
+        
+        # 진짜 표 태그가 시작되는 위치 찾기
+        tag_idx = after_year_html.find('<thead')
+        if tag_idx == -1: tag_idx = after_year_html.find('<tbody')
+        if tag_idx == -1: tag_idx = after_year_html.find('<tr')
+        
+        if tag_idx != -1:
+            extracted_html = after_year_html[tag_idx:]
+        else:
+            extracted_html = after_year_html
     
-    # ⭐️ 자바스크립트가 오늘 날짜를 인식할 수 있도록 다양한 포맷 생성
+    # 오늘 날짜 포맷팅
     today_formats = [
         now.strftime('%Y-%m-%d'), now.strftime('%Y.%m.%d'), now.strftime('%Y/%m/%d'),
         f"{now.month:02d}-{now.day:02d}", f"{now.month:02d}.{now.day:02d}", f"{now.month:02d}/{now.day:02d}",
@@ -76,7 +89,7 @@ def run(playwright):
     today_js_array = json.dumps(today_formats)
     kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
 
-    # CSS 테두리 강제 주입 및 오늘 일정 스크립트 추가
+    # CSS 테두리 및 오늘 일정 분리 스크립트
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -84,20 +97,28 @@ def run(playwright):
         <meta charset="UTF-8">
         <title>그룹웨어 공유 일정</title>
         <style>
-            body {{ font-family: 'Malgun Gothic', sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }}
-            h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 10px; margin-top: 30px; }}
-            .sync-time {{ color: #7f8c8d; font-size: 13px; margin-bottom: 20px; }}
+            :root {{
+                --text-main: #0f172a;
+                --border-strong: #475569;
+                --border-light: #94a3b8;
+                --header-bg: #e2e8f0;
+                --hover-bg: #f1f5f9;
+            }}
+            body {{ font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; padding: 30px; background-color: #f8fafc; color: var(--text-main); margin: 0; }}
+            h2 {{ color: #0f172a; border-bottom: 3px solid var(--border-strong); padding-bottom: 10px; margin-top: 30px; font-size: 24px; }}
+            .sync-time {{ color: #475569; font-size: 14px; margin-bottom: 20px; font-weight: 500; }}
             
-            /* 테이블 기본 디자인 */
-            .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; margin-bottom: 40px; }}
-            table {{ border-collapse: collapse !important; width: 100% !important; }}
-            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; white-space: nowrap; }}
-            th {{ background-color: #e2e8f0 !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; }}
+            /* 테이블 기본 디자인 (진한 테두리) */
+            .table-container {{ background: #fff; border-radius: 8px; border: 2px solid var(--border-strong); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow-x: auto; margin-bottom: 40px; max-height: 60vh; }}
+            table {{ border-collapse: collapse !important; width: 100% !important; white-space: nowrap; }}
+            table, th, td {{ border: 1px solid var(--border-light) !important; padding: 14px 18px !important; text-align: center !important; vertical-align: middle !important; font-size: 15px !important; }}
+            th {{ background-color: var(--header-bg) !important; font-weight: 800 !important; border-bottom: 2px solid var(--border-strong) !important; position: sticky; top: 0; z-index: 10; }}
+            tbody tr:hover {{ background-color: var(--hover-bg) !important; }}
             
-            /* 오늘 일정 전용 하이라이트 디자인 */
-            .today-highlight {{ border: 2px solid #e11d48; box-shadow: 0 4px 15px rgba(225, 29, 72, 0.15); }}
-            .today-title {{ color: #e11d48; border-bottom: 2px solid #e11d48; margin-top: 10px; }}
-            .empty-msg {{ padding: 20px; text-align: center; color: #6b7280; font-style: italic; font-size: 15px; }}
+            /* 오늘 일정 하이라이트 */
+            .today-highlight {{ border: 2px solid #e11d48; box-shadow: 0 4px 15px rgba(225, 29, 72, 0.15); max-height: unset; }}
+            .today-title {{ color: #e11d48; border-bottom: 3px solid #e11d48; margin-top: 10px; }}
+            .empty-msg {{ padding: 30px; text-align: center; color: #64748b; font-size: 15px; }}
         </style>
     </head>
     <body>
@@ -107,13 +128,14 @@ def run(playwright):
         </div>
 
         <h2>📋 전체 일정 목록</h2>
-        <p class="sync-time">마지막 동기화: {kst_now}</p>
+        <p class="sync-time">🔄 마지막 동기화: {kst_now}</p>
         <div class="table-container" id="raw-table-container">
-            {extracted_html}
+            <table>
+                {extracted_html}
+            </table>
         </div>
 
         <script>
-            // 원본 표를 해치지 않고 오늘 일정만 복사해오는 마법의 스크립트
             document.addEventListener('DOMContentLoaded', () => {{
                 const rawContainer = document.getElementById('raw-table-container');
                 const table = rawContainer.querySelector('table');
@@ -124,7 +146,6 @@ def run(playwright):
                     return;
                 }}
 
-                // 원본 표의 합쳐진 칸(rowspan)을 메모리상에서만 평평하게 폅니다.
                 const trs = table.rows; 
                 const matrix = [];
                 for(let i=0; i<trs.length; i++) matrix.push([]);
@@ -153,26 +174,22 @@ def run(playwright):
                 const headers = matrix[0] || [];
                 const bodyData = matrix.slice(1).filter(row => row && row.length > 0);
 
-                // 날짜 열 자동 탐색
                 let dateIdx = headers.findIndex(h => h && (h.text.includes('일자') || h.text.includes('일시') || h.text.includes('날짜')));
                 if(dateIdx === -1 && bodyData.length > 0) {{
                     dateIdx = bodyData[0].findIndex(c => c && (/[0-9]{{2,4}}[-./][0-9]{{1,2}}/.test(c.text) || c.text.includes('월')));
                 }}
                 if(dateIdx === -1) dateIdx = 1;
 
-                // 오늘 날짜 필터링
                 const todayFormats = {today_js_array};
                 const isToday = (text) => todayFormats.some(fmt => text.includes(fmt));
 
                 const todayData = bodyData.filter(row => row[dateIdx] && isToday(row[dateIdx].text));
 
-                // 오늘 일정이 없을 경우 처리
                 if(todayData.length === 0) {{
                     todayContainer.innerHTML = '<div class="empty-msg">오늘은 예정된 공유 일정이 없습니다. 🎉</div>';
                     return;
                 }}
 
-                // 오늘 일정 표 새로 그리기
                 let newHtml = '<table><thead><tr>';
                 headers.forEach(h => {{
                     if(h) newHtml += `<th>${{h.text}}</th>`;
@@ -188,7 +205,6 @@ def run(playwright):
                 }});
                 newHtml += '</tbody></table>';
 
-                // 상단 컨테이너에 복사된 오늘 표 삽입
                 todayContainer.innerHTML = newHtml;
             }});
         </script>
