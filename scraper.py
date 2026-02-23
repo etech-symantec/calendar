@@ -44,7 +44,7 @@ def run(playwright):
     print("일정목록 데이터 불러오는 중...")
     time.sleep(5)
     
-    print("5. 지정된 영역 추출 및 CSS 스타일링 중...")
+    print("5. 윗부분 찌꺼기 완벽 제거 및 CSS 강화 중...")
     
     raw_html = ""
     try:
@@ -52,19 +52,36 @@ def run(playwright):
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
-    # 🌟 핵심 변경 부분: 현재 연도를 자동으로 가져와서 '년'을 붙임
     current_year = datetime.now().year
     start_keyword = f"{current_year}년" 
     end_keyword = "일정등록"
     
     extracted_html = raw_html
-    if start_keyword in extracted_html:
-        extracted_html = extracted_html[extracted_html.find(start_keyword):]
+    
+    # 1. 꼬리(일정등록) 자르기
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
-    
+        
+    # 2. 머리(2026년) 찾기 및 상단 찌꺼기 이미지/버튼 제거
+    year_idx = extracted_html.find(start_keyword)
+    if year_idx != -1:
+        # 연도 이후의 코드만 임시로 가져옴
+        after_year_html = extracted_html[year_idx:]
+        
+        # 🌟 핵심: 연도 글자 이후에 처음으로 등장하는 "진짜 표 태그" 위치 찾기
+        tag_idx = after_year_html.find('<thead')
+        if tag_idx == -1: tag_idx = after_year_html.find('<tbody')
+        if tag_idx == -1: tag_idx = after_year_html.find('<tr')
+        
+        # 표 태그가 발견되면 그 앞의 찌꺼기(스크린샷 부분)는 전부 버림
+        if tag_idx != -1:
+            extracted_html = after_year_html[tag_idx:]
+        else:
+            extracted_html = after_year_html
+            
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+    # 🎨 더 또렷하고 명확한 테이블 테두리 CSS
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -74,10 +91,11 @@ def run(playwright):
         <style>
             :root {{
                 --bg-color: #f8fafc;
-                --text-main: #334155;
-                --border-light: #e2e8f0;
-                --header-bg: #f1f5f9;
-                --hover-bg: #f0fdf4;
+                --text-main: #0f172a; /* 글씨 더 진하게 */
+                --border-strong: #475569; /* 명확하고 진한 테두리 */
+                --border-light: #94a3b8; /* 내부 셀 테두리도 또렷하게 */
+                --header-bg: #e2e8f0;
+                --hover-bg: #f1f5f9;
             }}
             body {{
                 font-family: 'Pretendard', 'Malgun Gothic', '맑은 고딕', sans-serif;
@@ -88,17 +106,18 @@ def run(playwright):
             }}
             .header-area {{
                 margin-bottom: 30px;
-                border-bottom: 2px solid #cbd5e1;
+                border-bottom: 3px solid var(--border-strong);
                 padding-bottom: 15px;
             }}
             h2 {{ margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.5px; }}
-            .sync-time {{ margin: 8px 0 0 0; font-size: 14px; color: #64748b; }}
+            .sync-time {{ margin: 8px 0 0 0; font-size: 14px; color: #475569; font-weight: 500; }}
             
             .table-wrapper {{
                 background: #ffffff;
-                border-radius: 12px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-                border: 1px solid var(--border-light);
+                border-radius: 8px;
+                /* 표 바깥쪽 전체를 감싸는 아주 굵은 테두리 */
+                border: 2px solid var(--border-strong); 
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
                 overflow-x: auto;
                 max-height: 70vh; 
             }}
@@ -109,24 +128,25 @@ def run(playwright):
                 white-space: nowrap;
             }}
             th, td {{
-                padding: 16px 20px !important;
-                border: 1px solid var(--border-light) !important;
+                padding: 14px 18px !important;
+                /* 모든 칸마다 뚜렷한 선 적용 */
+                border: 1px solid var(--border-light) !important; 
                 text-align: center !important;
                 vertical-align: middle !important;
                 font-size: 15px !important;
+                color: var(--text-main) !important;
             }}
             th {{
                 background-color: var(--header-bg) !important;
-                color: #1e293b !important;
-                font-weight: 700 !important;
+                font-weight: 800 !important;
+                /* 제목줄 아랫부분은 더 굵은 선으로 구분 */
+                border-bottom: 2px solid var(--border-strong) !important; 
                 position: sticky;
                 top: 0;
                 z-index: 10;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             }}
             td:hover {{
                 background-color: var(--hover-bg) !important;
-                cursor: default;
             }}
         </style>
     </head>
