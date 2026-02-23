@@ -1,7 +1,7 @@
 import os
 import time
 from playwright.sync_api import sync_playwright
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 def run(playwright):
     browser = playwright.chromium.launch(headless=True)
@@ -52,8 +52,12 @@ def run(playwright):
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
-    # ✂️ 문자열 자르기 로직
-    current_year = datetime.now().year
+    # KST (한국 표준시) 설정
+    kst = timezone(timedelta(hours=9))
+    now = datetime.now(kst)
+    
+    # ✂️ 문자열 자르기
+    current_year = now.year
     start_keyword = f"{current_year}년" 
     end_keyword = "일정등록"
     
@@ -61,11 +65,10 @@ def run(playwright):
     
     if start_keyword in extracted_html:
         extracted_html = extracted_html[extracted_html.find(start_keyword):]
-        
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
     
-    kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
 
     html_template = f"""
     <!DOCTYPE html>
@@ -88,11 +91,14 @@ def run(playwright):
             table {{ border-collapse: collapse !important; width: 100% !important; }}
             table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; }}
             th {{ background-color: #e2e8f0 !important; font-weight: bold !important; }}
+            
+            /* 💡 병합이 해제되어 복사된 셀에 살짝 연한 배경을 주어 구분을 원하시면 아래 주석을 푸세요 */
+            /* .unmerged-cell {{ background-color: #fafafa !important; }} */
         </style>
     </head>
     <body>
         <h2>📅 공유 일정 대시보드</h2>
-        <p class="sync-time">마지막 동기화: {kst_now}</p>
+        <p class="sync-time">마지막 동기화: {kst_now} (KST)</p>
         
         <div class="summary-box">
             <h3>🔥 오늘의 일정 요약</h3>
@@ -107,65 +113,94 @@ def run(playwright):
 
         <script>
             document.addEventListener("DOMContentLoaded", function() {{
+                const table = document.querySelector('.table-container table');
+                if (!table) return;
+
+                // ==========================================
+                // 1. 표 평탄화 (rowspan 강제 해제 및 빈칸 채우기)
+                // ==========================================
+                const trs = Array.from(table.querySelectorAll('tr'));
+                const grid = [];
+
+                // 바둑판(grid) 배열에 모든 셀을 1:1로 복사해서 매핑
+                trs.forEach((tr, r) => {{
+                    if (!grid[r]) grid[r] = [];
+                    let c = 0;
+                    
+                    Array.from(tr.children).forEach(cell => {{
+                        while (grid[r][c]) c++; // 위에서 이미 합쳐져서 채워진 공간 건너뛰기
+                        
+                        const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
+                        const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
+                        
+                        for (let rr = 0; rr < rowspan; rr++) {{
+                            for (let cc = 0; cc < colspan; cc++) {{
+                                if (!grid[r + rr]) grid[r + rr] = [];
+                                
+                                // 셀을 복제하고, 병합 속성(rowspan)을 제거
+                                const clone = cell.cloneNode(true);
+                                clone.removeAttribute('rowspan');
+                                clone.removeAttribute('colspan');
+                                
+                                // 병합을 풀어서 생긴 복제본 셀에 클래스 추가 (선택적 스타일링용)
+                                if (rr > 0 || cc > 0) clone.classList.add('unmerged-cell');
+                                
+                                grid[r + rr][c + cc] = clone;
+                            }}
+                        }}
+                    }});
+                }});
+
+                // 완성된 바둑판 배열을 실제 화면(HTML)에 덮어쓰기
+                trs.forEach((tr, r) => {{
+                    tr.innerHTML = ''; // 기존 병합된 줄 삭제
+                    if (grid[r]) {{
+                        grid[r].forEach(cell => tr.appendChild(cell)); // 분리된 셀들로 다시 채우기
+                    }}
+                }});
+
+                // ==========================================
+                // 2. 오늘 일정 검사 및 하이라이트 (이제 각 줄이 독립적이므로 검사가 매우 쉬움!)
+                // ==========================================
                 const today = new Date();
                 const tM = today.getMonth() + 1;
                 const tD = today.getDate();
                 
-                // 💡 핵심: 어떤 텍스트가 들어오든 숫자만 뽑아서 '오늘'인지 판별하는 마법의 함수
                 const isToday = (text) => {{
                     if(!text) return false;
-                    
-                    // 1. 공백 완벽 제거
                     const clean = text.replace(/\\s+/g, '');
-                    
-                    // 2. 텍스트 안에서 연속된 숫자들만 배열로 추출 (예: "2026.02.23" -> ["2026", "02", "23"])
                     const nums = clean.match(/\\d+/g);
                     if(!nums || nums.length < 2) return false;
 
                     let m, d;
-                    // 연도(2026 등)가 포함된 경우
                     if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{
                         m = parseInt(nums[1], 10);
                         d = parseInt(nums[2], 10);
                     }} else {{
-                        // 연도 없이 월, 일만 있는 경우
                         m = parseInt(nums[0], 10);
                         d = parseInt(nums[1], 10);
                     }}
 
-                    // 3. 시간 데이터(예: 09:30)와 날짜를 착각하지 않도록 날짜 구분자 기호 검사
                     const isDateType = /[-./월일]/.test(clean);
-                    
                     return (m === tM && d === tD && isDateType);
                 }};
 
-                const rows = document.querySelectorAll('.table-container tr');
                 let todayEvents = [];
-                let highlightCounter = 0; 
 
-                rows.forEach(row => {{
-                    // 제목줄(헤더)은 검사 제외
-                    if (row.querySelectorAll('td').length === 0) return;
+                trs.forEach(row => {{
+                    if (row.querySelectorAll('td').length === 0) return; // 제목줄(헤더) 제외
 
-                    const cells = row.querySelectorAll('th, td');
-                    let foundTodayInThisRow = false;
-                    let maxRowSpan = 1;
-
-                    // 줄 안의 모든 칸 검사
-                    cells.forEach(cell => {{
+                    let isRowToday = false;
+                    
+                    // 해당 줄에 오늘 날짜가 있는지 검사
+                    row.querySelectorAll('th, td').forEach(cell => {{
                         if (isToday(cell.innerText)) {{
-                            foundTodayInThisRow = true;
-                            const rs = parseInt(cell.getAttribute('rowspan') || '1', 10);
-                            if (rs > maxRowSpan) maxRowSpan = rs;
+                            isRowToday = true;
                         }}
                     }});
 
-                    if (foundTodayInThisRow) {{
-                        highlightCounter = maxRowSpan; 
-                    }}
-
-                    // 오늘 일정 하이라이트 및 요약 데이터 추출
-                    if (highlightCounter > 0) {{
+                    // 오늘 일정이면 줄 전체 하이라이트 및 데이터 추출
+                    if (isRowToday) {{
                         row.querySelectorAll('td, th').forEach(c => {{
                             c.style.backgroundColor = '#fff1f2';
                             c.style.color = '#9f1239';
@@ -181,11 +216,12 @@ def run(playwright):
                         if(rowData.length > 0) {{
                             todayEvents.push(rowData.join(' | '));
                         }}
-                        
-                        highlightCounter--; 
                     }}
                 }});
 
+                // ==========================================
+                // 3. 상단 요약 박스 업데이트
+                // ==========================================
                 const ul = document.getElementById('today-list');
                 ul.innerHTML = '';
                 
