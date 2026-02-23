@@ -48,7 +48,6 @@ def run(playwright):
     
     extracted_html = ""
     try:
-        # 무식하게 전체를 가져와서 자르는게 아니라, 원하는 ID의 알맹이만 정확히 가져옵니다!
         extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=5000)
     except Exception:
         extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=5000)
@@ -102,18 +101,15 @@ def run(playwright):
                 const tM = today.getMonth() + 1;
                 const tD = today.getDate();
                 
-                // 음력 날짜가 섞여 있어도 진짜 '오늘' 숫자를 찰떡같이 찾아내는 함수
                 const isToday = (text) => {{
                     if(!text) return false;
                     const clean = text.replace(/\\s+/g, '');
                     const nums = clean.match(/\\d+/g);
                     if(!nums || nums.length < 2) return false;
 
-                    // 그룹웨어 표기법 "2.23(월)" -> nums[0]은 월, nums[1]은 일
                     let m = parseInt(nums[0], 10);
                     let d = parseInt(nums[1], 10);
                     
-                    // 혹시 "2026.02.23" 형태로 연도가 앞에 있다면
                     if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{
                         m = parseInt(nums[1], 10);
                         d = parseInt(nums[2], 10);
@@ -123,21 +119,32 @@ def run(playwright):
 
                 const rows = document.querySelectorAll('.table-container tbody tr');
                 let todayEvents = [];
+                
+                // 💡 핵심: 병합된 칸(rowspan)을 기억하는 추적기 변수
+                let activeRowSpan = 0; 
+                let isTodayGroup = false;
 
                 rows.forEach(row => {{
-                    // 날짜는 첫 번째 칸인 th에 들어있음
-                    const dateCell = row.querySelector('th');
-                    if (!dateCell) return;
+                    // 각 줄에서 '날짜(th)' 칸이 있는지 확인합니다.
+                    const th = row.querySelector('th');
 
-                    if (isToday(dateCell.innerText)) {{
-                        // 오늘 일정이면 줄 전체 하이라이트
+                    if (th) {{
+                        // 날짜 칸이 있다면, 이게 몇 줄짜리 병합인지(rowspan) 가져옵니다. (없으면 1줄)
+                        activeRowSpan = parseInt(th.getAttribute('rowspan') || '1', 10);
+                        // 이 날짜가 '오늘'인지 확인합니다.
+                        isTodayGroup = isToday(th.innerText);
+                    }}
+
+                    // 현재 줄이 '오늘 일정'의 범위(rowspan 카운터) 안에 속해 있다면?
+                    if (isTodayGroup && activeRowSpan > 0) {{
+                        // 줄 전체를 예쁜 핑크색으로 하이라이트!
                         row.style.backgroundColor = '#fff1f2';
                         row.querySelectorAll('th, td').forEach(c => {{
                             c.style.color = '#9f1239';
                             c.style.fontWeight = 'bold';
                         }});
 
-                        // 요약 추출 (시간, 일정명, 등록자)
+                        // 요약 데이터 추출
                         const tds = row.querySelectorAll('td');
                         if (tds.length >= 3) {{
                             const time = tds[0].innerText.trim();
@@ -145,6 +152,11 @@ def run(playwright):
                             const name = tds[2].innerText.trim();
                             todayEvents.push(`[${{name}}] ${{title}} (${{time}})`);
                         }}
+                    }}
+
+                    // 카운터 1 차감 (이 줄을 처리했으니 다음 줄로 넘어갑니다)
+                    if (activeRowSpan > 0) {{
+                        activeRowSpan--;
                     }}
                 }});
 
