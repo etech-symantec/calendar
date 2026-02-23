@@ -6,7 +6,7 @@ from datetime import datetime
 def run(playwright):
     # 처음 테스트할 때는 headless=False로 브라우저 창을 띄워서 동작을 눈으로 확인하세요!
     # 완벽히 작동하면 나중에 GitHub Actions에 올릴 때 True로 바꿉니다.
-    browser = playwright.chromium.launch(headless=False)
+    browser = playwright.chromium.launch(headless=True)
     
     # 팝업 무시 및 세션 유지를 위한 컨텍스트 생성
     context = browser.new_context()
