@@ -54,7 +54,7 @@ def run(playwright):
     
     # ✂️ 문자열 자르기 로직
     # 만약 화면에 연도가 "2026"이라고 표시된다면 아래 start_keyword를 화면에 보이는 실제 텍스트로 맞춰주세요.
-    start_keyword = "2026" 
+    start_keyword = "2026년" 
     end_keyword = "일정등록"
     
     extracted_html = raw_html
