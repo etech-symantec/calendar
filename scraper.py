@@ -44,7 +44,61 @@ def run(playwright):
     print("일정목록 데이터 불러오는 중...")
     time.sleep(5)
     
-    print("5. 지정된 영역 추출 및 테두리 생성 중...")
+    print("5. 🌟 핵심: 그룹웨어 화면 내부에서 직접 병합 해제(평탄화) 실행 중...")
+    
+    # 이 자바스크립트는 내 컴퓨터가 아니라, 접속해 있는 그룹웨어 사이트 자체에 주입되어 실행됩니다!
+    # 따라서 깨지지 않은 100% 원본 뼈대 상태에서 안전하게 병합을 풉니다.
+    unmerge_js = """
+    () => {
+        const tables = document.querySelectorAll('table');
+        tables.forEach(table => {
+            const trs = Array.from(table.rows);
+            const grid = [];
+            
+            trs.forEach((tr, r) => {
+                if (!grid[r]) grid[r] = [];
+                let c = 0;
+                Array.from(tr.cells).forEach(cell => {
+                    while (grid[r][c]) c++;
+                    
+                    const rowspan = cell.rowSpan || 1;
+                    const colspan = cell.colSpan || 1;
+                    
+                    for (let rr = 0; rr < rowspan; rr++) {
+                        for (let cc = 0; cc < colspan; cc++) {
+                            if (!grid[r + rr]) grid[r + rr] = [];
+                            const clone = cell.cloneNode(true);
+                            clone.removeAttribute('rowspan');
+                            clone.removeAttribute('colspan');
+                            
+                            // 💡 복제된 칸(원래 빈칸이었던 곳)은 구분을 위해 연한 회색 배경 처리
+                            if (rr > 0 || cc > 0) clone.style.backgroundColor = '#f8fafc';
+                            
+                            grid[r + rr][c + cc] = clone;
+                        }
+                    }
+                });
+            });
+            
+            // 병합이 풀린 데이터로 표를 아예 덮어씌움
+            trs.forEach((tr, r) => {
+                tr.innerHTML = '';
+                if (grid[r]) {
+                    grid[r].forEach(cell => tr.appendChild(cell));
+                }
+            });
+        });
+    }
+    """
+    
+    # iframe 안팎의 모든 테이블을 안전하게 평탄화
+    for f in page.frames:
+        try:
+            f.evaluate(unmerge_js)
+        except:
+            pass
+
+    print("6. 평탄화된 데이터 추출 및 자르기 중...")
     
     raw_html = ""
     try:
@@ -68,6 +122,7 @@ def run(playwright):
     
     kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
 
+    # 이제 추출된 HTML은 이미 병합이 풀린 상태이므로, 복잡한 자바스크립트 없이 바로 출력합니다!
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -87,8 +142,8 @@ def run(playwright):
 
             .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; }}
             table {{ border-collapse: collapse !important; width: 100% !important; }}
-            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; }}
-            th {{ background-color: #e2e8f0 !important; font-weight: bold !important; }}
+            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; white-space: nowrap; }}
+            th {{ background-color: #e2e8f0 !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; }}
         </style>
     </head>
     <body>
@@ -103,88 +158,21 @@ def run(playwright):
         </div>
 
         <div class="table-container">
-            {extracted_html}
+            <table>
+                {extracted_html}
+            </table>
         </div>
 
         <script>
+            // 이미 표가 다 풀려있기 때문에, 오늘 날짜만 찾아서 줄단위로 칠해주면 끝입니다!
             document.addEventListener("DOMContentLoaded", function() {{
-                // 1. 혹시 모를 여러 표들 중에서 데이터가 가장 많은 '진짜 표' 찾기
-                const tables = document.querySelectorAll('.table-container table');
-                if (tables.length === 0) return;
-                
-                let targetTable = tables[0];
-                let maxRows = 0;
-                tables.forEach(tbl => {{
-                    if (tbl.rows.length > maxRows) {{
-                        maxRows = tbl.rows.length;
-                        targetTable = tbl;
-                    }}
-                }});
-
-                if (maxRows === 0) return;
-
-                // 2. 표 평탄화 (에러 방지를 위해 아예 HTML을 새로 그립니다)
-                const trs = targetTable.rows;
-                const grid = [];
-                for (let i = 0; i < trs.length; i++) grid.push([]);
-
-                for (let r = 0; r < trs.length; r++) {{
-                    const cells = trs[r].cells;
-                    let c = 0;
-                    for (let i = 0; i < cells.length; i++) {{
-                        while (grid[r][c] !== undefined) c++;
-                        
-                        const cell = cells[i];
-                        const rowspan = cell.rowSpan || 1;
-                        const colspan = cell.colSpan || 1;
-                        const html = cell.innerHTML;
-                        const tagName = cell.tagName;
-
-                        for (let rr = 0; rr < rowspan; rr++) {{
-                            for (let cc = 0; cc < colspan; cc++) {{
-                                if (!grid[r + rr]) grid[r + rr] = [];
-                                grid[r + rr][c + cc] = {{
-                                    html: html,
-                                    tagName: tagName,
-                                    isClone: (rr > 0 || cc > 0)
-                                }};
-                            }}
-                        }}
-                    }}
-                }}
-
-                // 병합 해제된 완전히 새로운 표 HTML 생성
-                let newHtml = '<tbody>';
-                for (let r = 0; r < grid.length; r++) {{
-                    newHtml += '<tr>';
-                    const row = grid[r];
-                    if (row) {{
-                        for (let c = 0; c < row.length; c++) {{
-                            const cellData = row[c];
-                            if (cellData) {{
-                                // 복사되어 채워진 빈칸은 살짝 연한 글씨/배경 처리 (가독성 향상)
-                                const style = cellData.isClone ? 'color: #64748b; background-color: #f8fafc;' : ''; 
-                                newHtml += `<${{cellData.tagName}} style="${{style}}">${{cellData.html}}</${{cellData.tagName}}>`;
-                            }}
-                        }}
-                    }}
-                    newHtml += '</tr>';
-                }}
-                newHtml += '</tbody>';
-                
-                // 기존 표를 완전히 분해된 새 표로 덮어쓰기!
-                targetTable.innerHTML = newHtml;
-
-
-                // 3. 오늘 일정 검사
                 const today = new Date();
                 const tM = today.getMonth() + 1;
                 const tD = today.getDate();
                 
                 const isToday = (text) => {{
                     if(!text) return false;
-                    // 시간(09:00-18:00)을 날짜로 착각하는 것을 방지하기 위해 ':' 포함 텍스트 제외
-                    if(text.includes(':')) return false; 
+                    if(text.includes(':')) return false; // 09:00 같은 시간 형태 패스
                     
                     const clean = text.replace(/\\s+/g, '');
                     const nums = clean.match(/\\d+/g);
@@ -198,47 +186,47 @@ def run(playwright):
                         m = parseInt(nums[0], 10);
                         d = parseInt(nums[1], 10);
                     }}
-
                     return (m === tM && d === tD);
                 }};
 
+                const rows = document.querySelectorAll('.table-container tr');
                 let todayEvents = [];
-                const finalRows = targetTable.rows;
 
-                for (let i = 0; i < finalRows.length; i++) {{
-                    const row = finalRows[i];
-                    if (row.cells.length === 0 || row.cells[0].tagName === 'TH') continue;
+                rows.forEach(row => {{
+                    if (row.querySelectorAll('td').length === 0) return;
 
                     let isRowToday = false;
                     
-                    // 제목에 적힌 날짜를 오늘로 착각하지 않도록, 표의 앞부분(최대 3번째 칸까지만) 날짜 검사
-                    for (let j = 0; j < Math.min(row.cells.length, 3); j++) {{
-                        if (isToday(row.cells[j].innerText)) {{
+                    // 각 줄의 앞부분(최대 3칸)만 검사해서 오늘 날짜가 있는지 확인
+                    const cells = row.querySelectorAll('th, td');
+                    for (let i = 0; i < Math.min(cells.length, 3); i++) {{
+                        if (isToday(cells[i].innerText)) {{
                             isRowToday = true;
                             break;
                         }}
                     }}
 
                     if (isRowToday) {{
-                        Array.from(row.cells).forEach(c => {{
+                        // 줄 전체 하이라이트
+                        cells.forEach(c => {{
                             c.style.backgroundColor = '#fff1f2';
                             c.style.color = '#9f1239';
                             c.style.fontWeight = 'bold';
                         }});
 
+                        // 요약 내용 추출
                         let rowData = [];
-                        Array.from(row.cells).forEach(c => {{
+                        cells.forEach(c => {{
                             const txt = c.innerText.trim().replace(/\\s+/g, ' '); 
                             if(txt) rowData.push(txt);
                         }});
-                        
                         if(rowData.length > 0) {{
                             todayEvents.push(rowData.join(' | '));
                         }}
                     }}
-                }}
+                }});
 
-                // 4. 상단 요약본 출력
+                // 상단 요약 업데이트
                 const ul = document.getElementById('today-list');
                 ul.innerHTML = '';
                 
