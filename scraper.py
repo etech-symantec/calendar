@@ -44,7 +44,7 @@ def run(playwright):
     print("일정목록 데이터 불러오는 중...")
     time.sleep(5)
     
-    print("5. 지정된 영역 추출 및 UI 렌더링 중...")
+    print("5. 데이터 추출 및 마법의 UI 템플릿 적용 중...")
     
     raw_html = ""
     try:
@@ -52,7 +52,7 @@ def run(playwright):
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
-    # ✂️ 지난번 찾으신 영역 그대로 슬라이싱
+    # 앞뒤 불필요한 부분 자르기 (원본 데이터 보존)
     start_keyword = "2026년" 
     end_keyword = "일정등록"
     
@@ -64,131 +64,179 @@ def run(playwright):
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
     
-    kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = datetime.now()
+    kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # ⭐️ 오늘 날짜를 식별하기 위한 다양한 포맷 생성 (그룹웨어 날짜 표시 형식이 어떻든 잡아내기 위함)
+    today_formats = [
+        now.strftime('%Y-%m-%d'),
+        now.strftime('%Y.%m.%d'),
+        now.strftime('%Y/%m/%d'),
+        f"{now.month:02d}-{now.day:02d}",
+        f"{now.month:02d}.{now.day:02d}",
+        f"{now.month:02d}/{now.day:02d}",
+        f"{now.month}월 {now.day}일",
+        f"{now.month}-{now.day}",
+        f"{now.month}.{now.day}",
+        f"{now.month}/{now.day}"
+    ]
+    today_js_array = str(today_formats)
 
-    # 🎨 필터링 기능과 모던 UI가 탑재된 마법의 HTML 템플릿
+    # 🎨 필터링 및 분리 렌더링이 포함된 스마트 대시보드 HTML
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <title>일정목록 대시보드</title>
+        <title>스마트 일정 대시보드</title>
         <style>
             :root {{
-                --primary-color: #4f46e5;
-                --bg-color: #f3f4f6;
-                --text-color: #1f2937;
-                --border-color: #e5e7eb;
+                --primary: #4f46e5;
+                --bg: #f3f4f6;
+                --text: #1f2937;
+                --border: #e5e7eb;
             }}
-            body {{
-                font-family: 'Pretendard', 'Malgun Gothic', '맑은 고딕', sans-serif;
-                background-color: var(--bg-color);
-                color: var(--text-color);
-                padding: 30px;
-                margin: 0;
-            }}
-            .header-container {{
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-end;
-                margin-bottom: 20px;
-                border-bottom: 2px solid var(--border-color);
-                padding-bottom: 15px;
-            }}
-            h2 {{ margin: 0; color: #111827; font-size: 24px; }}
-            .sync-time {{ color: #6b7280; font-size: 14px; margin: 0; }}
+            body {{ font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: var(--bg); color: var(--text); padding: 30px; margin: 0; }}
+            .header-container {{ display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px; border-bottom: 2px solid var(--border); padding-bottom: 15px; }}
+            h2 {{ margin: 0; font-size: 24px; color: #111827; }}
+            .sync-time {{ margin: 0; font-size: 14px; color: #6b7280; }}
             
-            .controls {{ margin-bottom: 20px; }}
-            .search-box {{
-                width: 100%;
-                max-width: 400px;
-                padding: 12px 16px;
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                font-size: 15px;
-                box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-                transition: all 0.2s;
-            }}
-            .search-box:focus {{
-                outline: none;
-                border-color: var(--primary-color);
-                box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-            }}
-
-            .table-container {{
-                background: #fff;
-                border-radius: 12px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                overflow-x: auto;
-                max-height: 75vh; /* 화면 길이에 맞춰 스크롤 생성 */
-            }}
+            .search-container {{ margin-bottom: 30px; }}
+            .search-box {{ width: 100%; max-width: 500px; padding: 14px 20px; border: 1px solid var(--border); border-radius: 10px; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; }}
+            .search-box:focus {{ outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }}
             
-            /* 원본 테이블 강제 스타일링 */
-            table {{
-                width: 100% !important;
-                border-collapse: collapse !important;
-                text-align: center;
-                white-space: nowrap; 
-            }}
-            th, td {{
-                padding: 14px 16px !important;
-                border: 1px solid var(--border-color) !important;
-                vertical-align: middle;
-            }}
-            th {{
-                background-color: #f9fafb !important;
-                color: #374151 !important;
-                font-weight: 600 !important;
-                /* 스크롤 시 제목줄 고정 */
-                position: sticky;
-                top: 0;
-                z-index: 10;
-                box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
-            }}
-            tr:hover td {{ background-color: #f0fdf4 !important; transition: 0.2s; }}
+            .section-title {{ font-size: 18px; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }}
+            .section-title.today {{ color: #e11d48; }}
+            .section-title.all {{ color: #4338ca; margin-top: 40px; }}
             
-            /* 필터링 시 사용되는 숨김 클래스 */
-            .hidden-row {{ display: none !important; }}
+            .table-container {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow-x: auto; max-height: 50vh; margin-bottom: 20px; border: 1px solid var(--border); }}
+            
+            /* 평탄화된 독립적 행 디자인 (검색에 최적화) */
+            .styled-table {{ width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }}
+            .styled-table th, .styled-table td {{ padding: 14px 18px; border-bottom: 1px solid var(--border); }}
+            .styled-table th {{ background-color: #f9fafb; font-weight: 600; color: #374151; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }}
+            .styled-table tbody tr:hover {{ background-color: #f0fdf4; transition: 0.2s; }}
+            
+            .empty-msg {{ padding: 30px; text-align: center; color: #9ca3af; font-size: 15px; }}
         </style>
     </head>
     <body>
         <div class="header-container">
-            <h2>📅 그룹웨어 공유 일정 목록</h2>
-            <p class="sync-time">🔄 마지막 동기화: {kst_now}</p>
+            <h2>📅 스마트 공유 일정</h2>
+            <p class="sync-time">🔄 마지막 동기화: {kst_now_str}</p>
         </div>
         
-        <div class="controls">
-            <input type="text" id="searchInput" class="search-box" placeholder="🔍 검색어 입력 (이름, 일정명 등)...">
+        <div class="search-container">
+            <input type="text" id="searchInput" class="search-box" placeholder="🔍 참석자, 회의명 등을 검색하세요 (엔터 불필요)">
         </div>
 
-        <div class="table-container">
-            {extracted_html}
+        <div class="section-title today">🔥 오늘 일정</div>
+        <div id="today-container" class="table-container"></div>
+
+        <div class="section-title all">📋 전체 일정</div>
+        <div id="all-container" class="table-container"></div>
+
+        <div id="raw-content" style="display: none;">
+            <table>{extracted_html}</table>
         </div>
 
         <script>
-            // 실시간 검색(필터링) 기능
             document.addEventListener('DOMContentLoaded', () => {{
-                const searchInput = document.getElementById('searchInput');
-                const table = document.querySelector('.table-container table');
+                const rawContent = document.getElementById('raw-content');
+                const trs = Array.from(rawContent.querySelectorAll('tr'));
                 
-                if(!table) return;
+                if(trs.length < 2) {{
+                    document.getElementById('all-container').innerHTML = '<div class="empty-msg">가져올 데이터가 부족합니다.</div>';
+                    return;
+                }}
 
-                const rows = table.querySelectorAll('tr');
+                // 1. 합쳐진 칸(rowspan)을 완벽한 2차원 배열(바둑판)로 풀기
+                const matrix = [];
+                for(let i=0; i<trs.length; i++) matrix.push([]);
 
-                searchInput.addEventListener('keyup', function(e) {{
-                    const term = e.target.value.toLowerCase();
-                    
-                    rows.forEach(row => {{
-                        // 제목줄(th만 있는 줄)은 숨기지 않고 항상 표시
-                        if(row.querySelector('th') && !row.querySelector('td')) return;
+                for(let r=0; r<trs.length; r++) {{
+                    const cells = trs[r].querySelectorAll('th, td');
+                    let c = 0;
+                    for(let i=0; i<cells.length; i++) {{
+                        while(matrix[r][c] !== undefined) c++;
+                        
+                        const cell = cells[i];
+                        const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
+                        const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
+                        const html = cell.innerHTML;
+                        const text = cell.innerText.trim();
 
-                        const text = row.textContent.toLowerCase();
-                        if (text.includes(term)) {{
-                            row.classList.remove('hidden-row');
-                        }} else {{
-                            row.classList.add('hidden-row');
+                        for(let rr=0; rr<rowspan; rr++) {{
+                            for(let cc=0; cc<colspan; cc++) {{
+                                if(!matrix[r+rr]) matrix[r+rr] = [];
+                                matrix[r+rr][c+cc] = {{ html, text }};
+                            }}
                         }}
+                    }}
+                }}
+
+                // 2. 헤더와 데이터 분리
+                let headers = [];
+                let bodyData = [];
+                if(trs[0].querySelector('th')) {{
+                    headers = matrix[0];
+                    bodyData = matrix.slice(1).filter(row => row.length > 0);
+                }} else {{
+                    // 원본에서 제목줄이 잘렸을 경우 기본 헤더 임시 생성
+                    headers = matrix[0].map((_, i) => ({{ text: `항목 ${{i+1}}`, html: `항목 ${{i+1}}` }}));
+                    bodyData = matrix.filter(row => row.length > 0);
+                }}
+
+                // 3. '날짜' 열 똑똑하게 찾기
+                let dateIdx = headers.findIndex(h => h.text.includes('일자') || h.text.includes('일시') || h.text.includes('날짜') || h.text.includes('기간'));
+                if(dateIdx === -1 && bodyData.length > 0) {{
+                    dateIdx = bodyData[0].findIndex(c => /\\d{{2,4}}[-./]\\d{{1,2}}/.test(c.text) || c.text.includes('월'));
+                }}
+                if(dateIdx === -1) dateIdx = 1; // 기본 백업값
+
+                // 4. 오늘 데이터 / 전체 데이터 깔끔하게 분류
+                const todayFormats = {today_js_array};
+                const isToday = (text) => todayFormats.some(fmt => text.includes(fmt));
+
+                let todayData = bodyData.filter(row => row[dateIdx] && isToday(row[dateIdx].text));
+                let allData = bodyData;
+
+                // 5. 테이블 렌더링 함수 (평탄화된 독립적인 행 구조 적용 -> 검색 버그 해결!)
+                const renderTable = (containerId, data) => {{
+                    const container = document.getElementById(containerId);
+                    if(data.length === 0) {{
+                        container.innerHTML = '<div class="empty-msg">해당하는 일정이 없습니다.</div>';
+                        return;
+                    }}
+
+                    let html = '<table class="styled-table"><thead><tr>';
+                    headers.forEach(h => html += `<th>${{h.text}}</th>`);
+                    html += '</tr></thead><tbody>';
+
+                    data.forEach(row => {{
+                        html += '<tr>';
+                        row.forEach(cell => html += `<td>${{cell.html}}</td>`);
+                        html += '</tr>';
                     }});
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                }};
+
+                // 6. 완벽하게 동작하는 실시간 검색(필터링) 기능
+                const applyFilter = (term) => {{
+                    term = term.toLowerCase();
+                    const filterFn = row => row.some(cell => cell.text.toLowerCase().includes(term));
+                    
+                    renderTable('today-container', term ? todayData.filter(filterFn) : todayData);
+                    renderTable('all-container', term ? allData.filter(filterFn) : allData);
+                }};
+
+                // 초기 그리기
+                applyFilter('');
+
+                // 검색창 키보드 입력 이벤트
+                document.getElementById('searchInput').addEventListener('keyup', (e) => {{
+                    applyFilter(e.target.value);
                 }});
             }});
         </script>
