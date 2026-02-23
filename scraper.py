@@ -44,85 +44,19 @@ def run(playwright):
     print("일정목록 데이터 불러오는 중...")
     time.sleep(5)
     
-    print("5. 🌟 핵심: 그룹웨어 화면 내부에서 직접 병합 해제(평탄화) 실행 중...")
+    print("5. 🌟 핵심: 찌꺼기 무시하고 'customListMonthDiv' 표만 핀셋으로 추출 중!")
     
-    # 이 자바스크립트는 내 컴퓨터가 아니라, 접속해 있는 그룹웨어 사이트 자체에 주입되어 실행됩니다!
-    # 따라서 깨지지 않은 100% 원본 뼈대 상태에서 안전하게 병합을 풉니다.
-    unmerge_js = """
-    () => {
-        const tables = document.querySelectorAll('table');
-        tables.forEach(table => {
-            const trs = Array.from(table.rows);
-            const grid = [];
-            
-            trs.forEach((tr, r) => {
-                if (!grid[r]) grid[r] = [];
-                let c = 0;
-                Array.from(tr.cells).forEach(cell => {
-                    while (grid[r][c]) c++;
-                    
-                    const rowspan = cell.rowSpan || 1;
-                    const colspan = cell.colSpan || 1;
-                    
-                    for (let rr = 0; rr < rowspan; rr++) {
-                        for (let cc = 0; cc < colspan; cc++) {
-                            if (!grid[r + rr]) grid[r + rr] = [];
-                            const clone = cell.cloneNode(true);
-                            clone.removeAttribute('rowspan');
-                            clone.removeAttribute('colspan');
-                            
-                            // 💡 복제된 칸(원래 빈칸이었던 곳)은 구분을 위해 연한 회색 배경 처리
-                            if (rr > 0 || cc > 0) clone.style.backgroundColor = '#f8fafc';
-                            
-                            grid[r + rr][c + cc] = clone;
-                        }
-                    }
-                });
-            });
-            
-            // 병합이 풀린 데이터로 표를 아예 덮어씌움
-            trs.forEach((tr, r) => {
-                tr.innerHTML = '';
-                if (grid[r]) {
-                    grid[r].forEach(cell => tr.appendChild(cell));
-                }
-            });
-        });
-    }
-    """
-    
-    # iframe 안팎의 모든 테이블을 안전하게 평탄화
-    for f in page.frames:
-        try:
-            f.evaluate(unmerge_js)
-        except:
-            pass
-
-    print("6. 평탄화된 데이터 추출 및 자르기 중...")
-    
-    raw_html = ""
+    extracted_html = ""
     try:
-        raw_html = frame.locator('body').inner_html(timeout=5000)
+        # 무식하게 전체를 가져와서 자르는게 아니라, 원하는 ID의 알맹이만 정확히 가져옵니다!
+        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=5000)
     except Exception:
-        raw_html = page.locator('body').inner_html(timeout=5000)
+        extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=5000)
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
-    
-    current_year = now.year
-    start_keyword = f"{current_year}년" 
-    end_keyword = "일정등록"
-    
-    extracted_html = raw_html
-    
-    if start_keyword in extracted_html:
-        extracted_html = extracted_html[extracted_html.find(start_keyword):]
-    if end_keyword in extracted_html:
-        extracted_html = extracted_html[:extracted_html.find(end_keyword)]
-    
     kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
 
-    # 이제 추출된 HTML은 이미 병합이 풀린 상태이므로, 복잡한 자바스크립트 없이 바로 출력합니다!
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -140,10 +74,11 @@ def run(playwright):
             .summary-box li {{ padding: 6px 0; border-bottom: 1px dashed #fecdd3; }}
             .summary-box li:last-child {{ border-bottom: none; }}
 
-            .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; }}
+            .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; max-height: 65vh; }}
             table {{ border-collapse: collapse !important; width: 100% !important; }}
-            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; white-space: nowrap; }}
+            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 12px 10px !important; text-align: center; white-space: nowrap; }}
             th {{ background-color: #e2e8f0 !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; }}
+            tbody tr:hover td, tbody tr:hover th {{ background-color: #f1f5f9 !important; transition: 0.2s; }}
         </style>
     </head>
     <body>
@@ -158,70 +93,57 @@ def run(playwright):
         </div>
 
         <div class="table-container">
-            <table>
-                {extracted_html}
-            </table>
+            {extracted_html}
         </div>
 
         <script>
-            // 이미 표가 다 풀려있기 때문에, 오늘 날짜만 찾아서 줄단위로 칠해주면 끝입니다!
             document.addEventListener("DOMContentLoaded", function() {{
                 const today = new Date();
                 const tM = today.getMonth() + 1;
                 const tD = today.getDate();
                 
+                // 음력 날짜가 섞여 있어도 진짜 '오늘' 숫자를 찰떡같이 찾아내는 함수
                 const isToday = (text) => {{
                     if(!text) return false;
-                    if(text.includes(':')) return false; // 09:00 같은 시간 형태 패스
-                    
                     const clean = text.replace(/\\s+/g, '');
                     const nums = clean.match(/\\d+/g);
                     if(!nums || nums.length < 2) return false;
 
-                    let m, d;
+                    // 그룹웨어 표기법 "2.23(월)" -> nums[0]은 월, nums[1]은 일
+                    let m = parseInt(nums[0], 10);
+                    let d = parseInt(nums[1], 10);
+                    
+                    // 혹시 "2026.02.23" 형태로 연도가 앞에 있다면
                     if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{
                         m = parseInt(nums[1], 10);
                         d = parseInt(nums[2], 10);
-                    }} else {{
-                        m = parseInt(nums[0], 10);
-                        d = parseInt(nums[1], 10);
                     }}
                     return (m === tM && d === tD);
                 }};
 
-                const rows = document.querySelectorAll('.table-container tr');
+                const rows = document.querySelectorAll('.table-container tbody tr');
                 let todayEvents = [];
 
                 rows.forEach(row => {{
-                    if (row.querySelectorAll('td').length === 0) return;
+                    // 날짜는 첫 번째 칸인 th에 들어있음
+                    const dateCell = row.querySelector('th');
+                    if (!dateCell) return;
 
-                    let isRowToday = false;
-                    
-                    // 각 줄의 앞부분(최대 3칸)만 검사해서 오늘 날짜가 있는지 확인
-                    const cells = row.querySelectorAll('th, td');
-                    for (let i = 0; i < Math.min(cells.length, 3); i++) {{
-                        if (isToday(cells[i].innerText)) {{
-                            isRowToday = true;
-                            break;
-                        }}
-                    }}
-
-                    if (isRowToday) {{
-                        // 줄 전체 하이라이트
-                        cells.forEach(c => {{
-                            c.style.backgroundColor = '#fff1f2';
+                    if (isToday(dateCell.innerText)) {{
+                        // 오늘 일정이면 줄 전체 하이라이트
+                        row.style.backgroundColor = '#fff1f2';
+                        row.querySelectorAll('th, td').forEach(c => {{
                             c.style.color = '#9f1239';
                             c.style.fontWeight = 'bold';
                         }});
 
-                        // 요약 내용 추출
-                        let rowData = [];
-                        cells.forEach(c => {{
-                            const txt = c.innerText.trim().replace(/\\s+/g, ' '); 
-                            if(txt) rowData.push(txt);
-                        }});
-                        if(rowData.length > 0) {{
-                            todayEvents.push(rowData.join(' | '));
+                        // 요약 추출 (시간, 일정명, 등록자)
+                        const tds = row.querySelectorAll('td');
+                        if (tds.length >= 3) {{
+                            const time = tds[0].innerText.trim();
+                            const title = tds[1].innerText.trim();
+                            const name = tds[2].innerText.trim();
+                            todayEvents.push(`[${{name}}] ${{title}} (${{time}})`);
                         }}
                     }}
                 }});
