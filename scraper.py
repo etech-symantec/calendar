@@ -44,7 +44,7 @@ def run(playwright):
     print("일정목록 데이터 불러오는 중...")
     time.sleep(5)
     
-    print("5. 윗부분 찌꺼기 완벽 제거 및 CSS 강화 중...")
+    print("5. 지정된 영역 추출 및 테두리 생성 중...")
     
     raw_html = ""
     try:
@@ -52,114 +52,48 @@ def run(playwright):
     except Exception:
         raw_html = page.locator('body').inner_html(timeout=5000)
     
+    # ✂️ 문자열 자르기 로직
     current_year = datetime.now().year
     start_keyword = f"{current_year}년" 
     end_keyword = "일정등록"
     
     extracted_html = raw_html
     
-    # 1. 꼬리(일정등록) 자르기
+    # 1. '2026'(또는 지정한 키워드)이 있는 곳부터 끝까지만 남김
+    if start_keyword in extracted_html:
+        extracted_html = extracted_html[extracted_html.find(start_keyword):]
+        
+    # 2. '일정등록' 글자가 있는 곳 앞까지만 딱 남김
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
-        
-    # 2. 머리(2026년) 찾기 및 상단 찌꺼기 이미지/버튼 제거
-    year_idx = extracted_html.find(start_keyword)
-    if year_idx != -1:
-        # 연도 이후의 코드만 임시로 가져옴
-        after_year_html = extracted_html[year_idx:]
-        
-        # 🌟 핵심: 연도 글자 이후에 처음으로 등장하는 "진짜 표 태그" 위치 찾기
-        tag_idx = after_year_html.find('<thead')
-        if tag_idx == -1: tag_idx = after_year_html.find('<tbody')
-        if tag_idx == -1: tag_idx = after_year_html.find('<tr')
-        
-        # 표 태그가 발견되면 그 앞의 찌꺼기(스크린샷 부분)는 전부 버림
-        if tag_idx != -1:
-            extracted_html = after_year_html[tag_idx:]
-        else:
-            extracted_html = after_year_html
-            
+    
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 🎨 더 또렷하고 명확한 테이블 테두리 CSS
+    # CSS 테두리 강제 주입 (!important 사용)
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <title>그룹웨어 공유 일정</title>
+        <title>일정목록 추출</title>
         <style>
-            :root {{
-                --bg-color: #f8fafc;
-                --text-main: #0f172a; /* 글씨 더 진하게 */
-                --border-strong: #475569; /* 명확하고 진한 테두리 */
-                --border-light: #94a3b8; /* 내부 셀 테두리도 또렷하게 */
-                --header-bg: #e2e8f0;
-                --hover-bg: #f1f5f9;
-            }}
-            body {{
-                font-family: 'Pretendard', 'Malgun Gothic', '맑은 고딕', sans-serif;
-                background-color: var(--bg-color);
-                color: var(--text-main);
-                padding: 40px;
-                margin: 0;
-            }}
-            .header-area {{
-                margin-bottom: 30px;
-                border-bottom: 3px solid var(--border-strong);
-                padding-bottom: 15px;
-            }}
-            h2 {{ margin: 0; font-size: 26px; color: #0f172a; letter-spacing: -0.5px; }}
-            .sync-time {{ margin: 8px 0 0 0; font-size: 14px; color: #475569; font-weight: 500; }}
+            body {{ font-family: sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }}
+            h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
+            .sync-time {{ color: #7f8c8d; font-size: 13px; margin-bottom: 20px; }}
             
-            .table-wrapper {{
-                background: #ffffff;
-                border-radius: 8px;
-                /* 표 바깥쪽 전체를 감싸는 아주 굵은 테두리 */
-                border: 2px solid var(--border-strong); 
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                overflow-x: auto;
-                max-height: 70vh; 
-            }}
-            
-            table {{
-                width: 100% !important;
-                border-collapse: collapse !important;
-                white-space: nowrap;
-            }}
-            th, td {{
-                padding: 14px 18px !important;
-                /* 모든 칸마다 뚜렷한 선 적용 */
-                border: 1px solid var(--border-light) !important; 
-                text-align: center !important;
-                vertical-align: middle !important;
-                font-size: 15px !important;
-                color: var(--text-main) !important;
-            }}
-            th {{
-                background-color: var(--header-bg) !important;
-                font-weight: 800 !important;
-                /* 제목줄 아랫부분은 더 굵은 선으로 구분 */
-                border-bottom: 2px solid var(--border-strong) !important; 
-                position: sticky;
-                top: 0;
-                z-index: 10;
-            }}
-            td:hover {{
-                background-color: var(--hover-bg) !important;
-            }}
+            /* 🔥 무조건 테두리가 보이게 강제하는 마법의 CSS */
+            .table-container {{ background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-x: auto; }}
+            table {{ border-collapse: collapse !important; width: 100% !important; }}
+            table, th, td {{ border: 1px solid #2c3e50 !important; padding: 10px !important; text-align: center; }}
+            th {{ background-color: #e2e8f0 !important; font-weight: bold !important; }}
         </style>
     </head>
     <body>
-        <div class="header-area">
-            <h2>📅 그룹웨어 공유 일정 목록</h2>
-            <p class="sync-time">🔄 마지막 동기화: {kst_now}</p>
-        </div>
+        <h2>📅 지정 영역 추출 결과</h2>
+        <p class="sync-time">마지막 동기화: {kst_now}</p>
         
-        <div class="table-wrapper">
-            <table>
-                {extracted_html}
-            </table>
+        <div class="table-container">
+            {extracted_html}
         </div>
     </body>
     </html>
