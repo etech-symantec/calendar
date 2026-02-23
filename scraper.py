@@ -1,6 +1,5 @@
 import os
 import time
-import json
 from playwright.sync_api import sync_playwright
 from datetime import datetime
 
@@ -54,8 +53,7 @@ def run(playwright):
         raw_html = page.locator('body').inner_html(timeout=5000)
     
     # ✂️ 문자열 자르기 로직
-    now = datetime.now()
-    current_year = now.year
+    current_year = datetime.now().year
     start_keyword = f"{current_year}년" 
     end_keyword = "일정등록"
     
@@ -67,20 +65,7 @@ def run(playwright):
     if end_keyword in extracted_html:
         extracted_html = extracted_html[:extracted_html.find(end_keyword)]
     
-    kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
-
-    # ⭐️ 띄어쓰기를 뺀 모든 경우의 수 날짜 포맷 (예: 2026.02.23, 2월23일 등)
-    yyyy, m, d = str(now.year), str(now.month), str(now.day)
-    mm, dd = f"{now.month:02d}", f"{now.day:02d}"
-    
-    today_formats = [
-        f"{yyyy}-{mm}-{dd}", f"{yyyy}.{mm}.{dd}", f"{yyyy}/{mm}/{dd}",
-        f"{yyyy}-{m}-{d}", f"{yyyy}.{m}.{d}", f"{yyyy}/{m}/{d}",
-        f"{mm}-{dd}", f"{mm}.{dd}", f"{mm}/{dd}",
-        f"{m}-{d}", f"{m}.{d}", f"{m}/{d}",
-        f"{m}월{d}일", f"{mm}월{dd}일"
-    ]
-    today_js_array = json.dumps(today_formats)
+    kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     html_template = f"""
     <!DOCTYPE html>
@@ -122,13 +107,36 @@ def run(playwright):
 
         <script>
             document.addEventListener("DOMContentLoaded", function() {{
-                const todayFormats = {today_js_array};
+                const today = new Date();
+                const tM = today.getMonth() + 1;
+                const tD = today.getDate();
                 
-                // 🔥 띄어쓰기를 전부 없애버리고 매칭하는 무적의 검사 함수
+                // 💡 핵심: 어떤 텍스트가 들어오든 숫자만 뽑아서 '오늘'인지 판별하는 마법의 함수
                 const isToday = (text) => {{
                     if(!text) return false;
-                    const cleanText = text.replace(/\\s+/g, ''); 
-                    return todayFormats.some(fmt => cleanText.includes(fmt));
+                    
+                    // 1. 공백 완벽 제거
+                    const clean = text.replace(/\\s+/g, '');
+                    
+                    // 2. 텍스트 안에서 연속된 숫자들만 배열로 추출 (예: "2026.02.23" -> ["2026", "02", "23"])
+                    const nums = clean.match(/\\d+/g);
+                    if(!nums || nums.length < 2) return false;
+
+                    let m, d;
+                    // 연도(2026 등)가 포함된 경우
+                    if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{
+                        m = parseInt(nums[1], 10);
+                        d = parseInt(nums[2], 10);
+                    }} else {{
+                        // 연도 없이 월, 일만 있는 경우
+                        m = parseInt(nums[0], 10);
+                        d = parseInt(nums[1], 10);
+                    }}
+
+                    // 3. 시간 데이터(예: 09:30)와 날짜를 착각하지 않도록 날짜 구분자 기호 검사
+                    const isDateType = /[-./월일]/.test(clean);
+                    
+                    return (m === tM && d === tD && isDateType);
                 }};
 
                 const rows = document.querySelectorAll('.table-container tr');
@@ -136,14 +144,14 @@ def run(playwright):
                 let highlightCounter = 0; 
 
                 rows.forEach(row => {{
-                    // 제목줄(헤더)은 검사에서 제외
+                    // 제목줄(헤더)은 검사 제외
                     if (row.querySelectorAll('td').length === 0) return;
 
                     const cells = row.querySelectorAll('th, td');
                     let foundTodayInThisRow = false;
                     let maxRowSpan = 1;
 
-                    // 줄 안의 '모든 칸'을 검사하여 하나라도 오늘 날짜가 있으면 당첨!
+                    // 줄 안의 모든 칸 검사
                     cells.forEach(cell => {{
                         if (isToday(cell.innerText)) {{
                             foundTodayInThisRow = true;
@@ -156,7 +164,7 @@ def run(playwright):
                         highlightCounter = maxRowSpan; 
                     }}
 
-                    // 오늘 일정 범위 안에 들어온 줄이라면 추출 및 하이라이트
+                    // 오늘 일정 하이라이트 및 요약 데이터 추출
                     if (highlightCounter > 0) {{
                         row.querySelectorAll('td, th').forEach(c => {{
                             c.style.backgroundColor = '#fff1f2';
