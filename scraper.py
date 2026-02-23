@@ -65,150 +65,62 @@ def run(playwright):
     # 5. 결과를 담은 웹페이지(index.html) 생성
     kst_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    html_template = """
+    html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
         <title>그룹웨어 일정목록</title>
         <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 20px; color: #333; }
-            h2 { border-bottom: 3px solid #2c3e50; padding-bottom: 10px; color: #2c3e50; }
-            .sync-time { color: #7f8c8d; font-size: 14px; margin-bottom: 30px; font-weight: 500; }
+            body {{ font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background-color: #f8f9fa; padding: 20px; color: #333; }}
+            h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
+            .sync-time {{ color: #7f8c8d; font-size: 13px; margin-bottom: 20px; }}
             
-            /* 가공된 날짜별 그룹 스타일 */
-            .date-group { margin-bottom: 35px; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; }
-            .date-header { background-color: #34495e; color: white; padding: 14px 20px; font-size: 17px; font-weight: bold; letter-spacing: 0.5px; }
-            .styled-table { width: 100%; border-collapse: collapse; }
-            .styled-table th, .styled-table td { border-bottom: 1px solid #eee; padding: 14px 20px; text-align: left; font-size: 14.5px; }
-            .styled-table th { background-color: #f8fafc; color: #34495e; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
-            .styled-table tr:last-child td { border-bottom: none; }
-            .styled-table tr:hover { background-color: #f1f5f9; transition: background 0.2s; }
+            /* 그룹웨어 원본 표 스타일을 그대로 살리는 CSS */
+            .table-container {{ overflow-x: auto; background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }}
             
-            /* 원본 테이블 숨김 */
-            #raw-table { display: none; }
-            #raw-table table { width: 100%; border-collapse: collapse; background: #fff; }
-            #raw-table th, #raw-table td { border: 1px solid #ccc; padding: 10px; }
+            table {{ 
+                width: 100%; 
+                border-collapse: collapse; 
+                border-top: 2px solid #4a5568; 
+                font-size: 14px;
+            }}
+            th, td {{ 
+                border: 1px solid #cbd5e1; 
+                padding: 12px 15px; 
+                /* rowspan으로 칸이 합쳐졌을 때 글자가 중앙에 오도록 설정 */
+                vertical-align: middle; 
+                text-align: center; 
+            }}
+            th {{ 
+                background-color: #f1f5f9; 
+                font-weight: bold; 
+                color: #4a5568;
+            }}
+            
+            /* 내용이 길 수 있는 제목 같은 부분은 왼쪽 정렬을 원하시면 
+               아래 nth-child 숫자를 타겟 열 번호로 맞춰 수정하시면 됩니다. */
+            /* td:nth-child(3) {{ text-align: left; }} */
+            
+            tbody tr:hover {{ background-color: #f8fafc; }}
         </style>
     </head>
     <body>
         <h2>📅 공유 일정 목록</h2>
-        <p class="sync-time">🔄 마지막 동기화: {kst_now}</p>
+        <p class="sync-time">마지막 동기화: {kst_now}</p>
         
-        <div id="grouped-container"></div>
-
-        <div id="raw-table">
-            <table id="source-table">
+        <div class="table-container">
+            <table>
                 {table_html}
             </table>
         </div>
-
-        <script>
-            document.addEventListener("DOMContentLoaded", function() {
-                try {
-                    // 원본 테이블 요소 찾기
-                    const rawTable = document.getElementById("source-table").querySelector("table") || document.getElementById("source-table");
-                    const trs = Array.from(rawTable.querySelectorAll("tr"));
-                    
-                    if (trs.length < 2) throw new Error("데이터가 없습니다.");
-
-                    // 1단계: 병합된 셀(rowspan, colspan)을 완벽한 바둑판(2차원 배열)으로 펼치기
-                    const grid = [];
-                    for (let r = 0; r < trs.length; r++) {
-                        const tds = trs[r].querySelectorAll("th, td");
-                        let c = 0;
-                        for (let i = 0; i < tds.length; i++) {
-                            // 위에서 병합되어 내려온 빈 공간 건너뛰기
-                            while (grid[r] && grid[r][c]) c++; 
-                            
-                            const td = tds[i];
-                            const rowspan = parseInt(td.getAttribute("rowspan") || "1", 10);
-                            const colspan = parseInt(td.getAttribute("colspan") || "1", 10);
-                            const content = td.innerHTML; // 셀 안의 HTML(버튼, 링크 등) 그대로 복사
-                            
-                            // 병합된 크기만큼 grid에 데이터 채워넣기
-                            for (let rr = 0; rr < rowspan; rr++) {
-                                for (let cc = 0; cc < colspan; cc++) {
-                                    if (!grid[r + rr]) grid[r + rr] = [];
-                                    grid[r + rr][c + cc] = content;
-                                }
-                            }
-                            c += colspan;
-                        }
-                    }
-
-                    // 2단계: 헤더(제목줄) 추출 및 '날짜' 열 위치 찾기
-                    const headers = grid[0].map(html => {
-                        const tmp = document.createElement("div");
-                        tmp.innerHTML = html;
-                        return tmp.innerText.trim();
-                    });
-                    
-                    let dateIdx = headers.findIndex(h => h.includes("일자") || h.includes("일시") || h.includes("기간") || h.includes("날짜"));
-                    if (dateIdx === -1) dateIdx = 1; // 기본값: 2번째 열
-
-                    // 3단계: 바둑판 데이터를 날짜별로 그룹화
-                    const groupedData = {};
-                    for (let r = 1; r < grid.length; r++) {
-                        const rowData = grid[r];
-                        if (!rowData || rowData.length === 0) continue;
-                        
-                        // 날짜 텍스트 깔끔하게 정제
-                        const tmpDate = document.createElement("div");
-                        tmpDate.innerHTML = rowData[dateIdx] || "날짜 없음";
-                        let dateText = tmpDate.innerText.trim().split('\\n')[0]; 
-                        if (!dateText) dateText = "분류 안 됨";
-
-                        if (!groupedData[dateText]) groupedData[dateText] = [];
-                        groupedData[dateText].push(rowData);
-                    }
-
-                    // 4단계: 날짜별로 예쁜 카드 형태의 새 테이블 그려주기
-                    const container = document.getElementById("grouped-container");
-                    for (const [date, rows] of Object.entries(groupedData)) {
-                        const dateBlock = document.createElement("div");
-                        dateBlock.className = "date-group";
-                        
-                        const headerHTML = `<div class="date-header">🗓️ ${date}</div>`;
-                        
-                        // 새 테이블 헤더 생성 (날짜 열은 제목에 썼으므로 숨김)
-                        let tableHeadHTML = "<tr>";
-                        headers.forEach((h, i) => {
-                            if (i !== dateIdx) tableHeadHTML += `<th>${h}</th>`;
-                        });
-                        tableHeadHTML += "</tr>";
-
-                        // 새 테이블 본문 데이터 생성
-                        let tableBodyHTML = "";
-                        rows.forEach(rowData => {
-                            tableBodyHTML += "<tr>";
-                            rowData.forEach((cellHtml, i) => {
-                                if (i !== dateIdx) tableBodyHTML += `<td>${cellHtml}</td>`;
-                            });
-                            tableBodyHTML += "</tr>";
-                        });
-
-                        const tableHTML = `<table class="styled-table"><thead>${tableHeadHTML}</thead><tbody>${tableBodyHTML}</tbody></table>`;
-                        
-                        dateBlock.innerHTML = headerHTML + tableHTML;
-                        container.appendChild(dateBlock);
-                    }
-                } catch (error) {
-                    // 에러 발생 시 원본 테이블 강제 노출 (안전장치)
-                    console.error("데이터 분류 에러:", error);
-                    document.getElementById("grouped-container").innerHTML = "<p><b style='color:#e74c3c;'>⚠️ 표 구조가 특이하여 원본 형태로 표시합니다.</b></p>";
-                    document.getElementById("raw-table").style.display = "block";
-                }
-            });
-        </script>
     </body>
     </html>
     """
 
-    final_html = html_template.replace("{kst_now}", kst_now).replace("{table_html}", table_html)
-
+    # index.html 파일 쓰기
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(final_html)
+        f.write(html_template)
         
     print("✅ 성공적으로 index.html을 생성했습니다!")
     browser.close()
