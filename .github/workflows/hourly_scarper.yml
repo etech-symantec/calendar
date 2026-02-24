@@ -1,4 +1,4 @@
-name: Daily Web Scraper
+name: Every 30 min Web Scraper
 
 on:
   schedule:
