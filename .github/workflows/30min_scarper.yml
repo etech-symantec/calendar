@@ -30,7 +30,7 @@ jobs:
           MY_SITE_ID: ${{ secrets.MY_SITE_ID }}
           MY_SITE_PW: ${{ secrets.MY_SITE_PW }}
           JANDI_WEBHOOK_URL: ${{ secrets.JANDI_WEBHOOK_URL }}
-        run: python scraper.py
+        run: python resource.py
         
       - name: 5. 변경된 HTML 파일 커밋 및 푸시
         run: |
