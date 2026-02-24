@@ -2,6 +2,7 @@ import os
 import time
 import requests
 import re
+import json # 👈 데이터 전달을 위해 추가됨
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta, timezone
 
@@ -31,11 +32,10 @@ def run(playwright):
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # [변경됨] 2. 상단 '일정' 메뉴 클릭
+    # 2. 상단 '일정' 메뉴 클릭
     # ------------------------------------------------------------------
     print("2. Clicking top '일정' (Schedule) menu...")
     try:
-        # 기존에 사용했던 '일정' 메뉴 ID 재사용
         page.click('#topMenu300000000', timeout=20000)
     except Exception as e:
         print(f"[DEBUG] ID click failed, trying text: {e}")
@@ -45,18 +45,14 @@ def run(playwright):
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # [변경됨] 3. 좌측 '자원관리' -> '자원캘린더' 클릭
+    # 3. 좌측 '자원관리' -> '자원캘린더' 클릭
     # ------------------------------------------------------------------
     print("3. Clicking left '자원관리' -> '자원캘린더'...")
     try:
-        # 1. 좌측 메뉴에서 '자원관리' 클릭 (폴더 열기)
         print("   - Clicking '자원관리'...")
-        # 좌측 메뉴 영역(nav 등) 내의 텍스트를 찾는 것이 정확하나, 
-        # 구조상 visible한 텍스트를 순차적으로 클릭합니다.
         page.locator('text="자원관리"').click(timeout=10000)
-        time.sleep(1) # 메뉴가 펼쳐지는 시간 대기
+        time.sleep(1) 
 
-        # 2. '자원캘린더' 클릭
         print("   - Clicking '자원캘린더'...")
         page.locator('text="자원캘린더"').click(timeout=10000)
     except Exception as e:
@@ -79,30 +75,12 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5. Extract HTML for Dashboard
+    # 5 & 6. 통합 데이터 추출 및 분석 (HTML 생성 준비 포함)
     # ------------------------------------------------------------------
-    print("5. Extracting Dashboard HTML...")
-    extracted_html = ""
-    try:
-        # 테이블 ID가 동일하다고 가정 (#customListMonthDiv)
-        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
-    except Exception as e:
-        print(f"[DEBUG] Extraction error: {e}")
-        try:
-            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
-        except:
-            extracted_html = "<p>Failed to load data.</p>"
-    print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
-
-    # ------------------------------------------------------------------
-    # 6. Python-side Calculation for BOTH Teams
-    # ------------------------------------------------------------------
-    print("6. Calculating Today's Schedule for Blue & Yellow Teams...")
+    print("5. Extracting & Processing Data...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
-    
-    # 요일 구하기 (0:월, ... 6:일)
     weekday_index = now.weekday()
     weekday_list = ["월", "화", "수", "목", "금", "토", "일"]
     weekday_str = weekday_list[weekday_index]
@@ -112,6 +90,7 @@ def run(playwright):
 
     today_blue_events = []
     today_yellow_events = []
+    final_grid_data = [] # HTML에 전달할 최종 데이터
     
     try:
         # 1. Locate the table
@@ -123,12 +102,16 @@ def run(playwright):
             table_handle = page.locator('#customListMonthDiv table')
         
         if table_handle and table_handle.count() > 0:
-            # 2. Get all row data using JS evaluation
+            # 2. Get all row data (텍스트 + HTML 스타일 포함)
             rows_data = table_handle.first.evaluate("""(table) => {
                 const rows = Array.from(table.rows);
                 return rows.map(tr => {
                     return Array.from(tr.children).map(cell => ({
                         text: cell.innerText.trim(),
+                        html: cell.innerHTML, // 스타일 유지를 위해 HTML 가져옴
+                        tagName: cell.tagName,
+                        className: cell.className,
+                        style: cell.getAttribute('style') || '',
                         rowspan: parseInt(cell.getAttribute('rowspan') || 1, 10),
                         colspan: parseInt(cell.getAttribute('colspan') || 1, 10)
                     }));
@@ -146,7 +129,15 @@ def run(playwright):
                     while c_idx < len(grid[r_idx]) and grid[r_idx][c_idx] is not None:
                         c_idx += 1
                     
-                    text = cell['text']
+                    # Store complex object for HTML generation
+                    cell_obj = {
+                        'text': cell['text'],
+                        'html': cell['html'],
+                        'tag': cell['tagName'],
+                        'cls': cell['className'],
+                        'style': cell['style']
+                    }
+                    
                     rowspan = cell['rowspan']
                     colspan = cell['colspan']
                     
@@ -159,8 +150,10 @@ def run(playwright):
                             target_col = c_idx + cc
                             while len(grid[target_row]) <= target_col:
                                 grid[target_row].append(None)
-                            grid[target_row][target_col] = text
+                            grid[target_row][target_col] = cell_obj
                     c_idx += colspan
+            
+            final_grid_data = grid # 저장해둠 (HTML용)
 
             # 4. Filter Logic
             blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
@@ -171,9 +164,10 @@ def run(playwright):
             for row in grid:
                 if len(row) < 3: continue
 
-                date_txt = row[0]
-                name_txt = row[-1]
-                title_txt = row[2] if len(row) > 2 else row[1]
+                # grid 요소가 dict이므로 text만 뽑아서 분석
+                date_txt = row[0]['text']
+                name_txt = row[-1]['text']
+                title_txt = row[2]['text'] if len(row) > 2 else row[1]['text']
 
                 clean_date = re.sub(r'\s+', '', date_txt)
                 nums = re.findall(r'\d+', clean_date)
@@ -187,15 +181,12 @@ def run(playwright):
                     m = int(nums[1])
                     d = int(nums[2])
 
-                # Check Date
                 if m == now.month and d == now.day:
-                    # 🔵 Check Blue Team
                     if any(member in name_txt for member in blue_team):
                         if title_txt and title_txt not in today_blue_events:
                             today_blue_events.append(title_txt)
                             print(f"[DEBUG] [Blue] Found: {title_txt} ({name_txt})")
                     
-                    # 🟡 Check Yellow Team
                     if any(member in name_txt for member in yellow_team):
                         if title_txt and title_txt not in today_yellow_events:
                             today_yellow_events.append(title_txt)
@@ -210,8 +201,11 @@ def run(playwright):
     print(f"[DEBUG] Blue Events: {len(today_blue_events)}, Yellow Events: {len(today_yellow_events)}")
 
     # ------------------------------------------------------------------
-    # 7. Create resource.html
+    # 7. Create resource.html (파이썬 데이터를 JS로 주입)
     # ------------------------------------------------------------------
+    # 파이썬 리스트를 JSON 문자열로 변환
+    json_grid_data = json.dumps(final_grid_data, ensure_ascii=False)
+
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -257,94 +251,114 @@ def run(playwright):
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
         <p class="sync-time">Update: {kst_now_str}</p>
-        <div class="table-container" id="wrapper">{extracted_html}</div>
+        <div class="table-container" id="wrapper">
+            <table></table>
+        </div>
         <script>
+            // 파이썬에서 만든 데이터를 그대로 받음 (이 부분이 핵심!)
+            const gridData = {json_grid_data}; 
+            
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
+
             document.addEventListener("DOMContentLoaded", function() {{
-                const table = document.querySelector('#wrapper table');
-                if(!table) return;
-                const trs = Array.from(table.rows);
-                const grid = [];
-                trs.forEach((tr, r) => {{
-                    if (!grid[r]) grid[r] = [];
-                    let c = 0;
-                    Array.from(tr.cells).forEach(cell => {{
-                        while (grid[r][c]) c++;
-                        const rs = cell.rowSpan || 1;
-                        const cs = cell.colSpan || 1;
-                        for (let rr = 0; rr < rs; rr++) {{
-                            for (let cc = 0; cc < cs; cc++) {{
-                                if (!grid[r + rr]) grid[r + rr] = [];
-                                grid[r + rr][c + cc] = {{ html: cell.innerHTML, tag: cell.tagName, cls: cell.className }};
-                            }}
-                        }}
-                    }});
-                }});
-                let newBody = '<tbody>';
-                for (let r = 0; r < grid.length; r++) {{
-                    newBody += '<tr>';
-                    grid[r].forEach(cell => {{ newBody += `<${{cell.tag}} class="${{cell.cls}}">${{cell.html}}</${{cell.tag}}>`; }});
-                    newBody += '</tr>';
-                }}
-                table.innerHTML = newBody + '</tbody>';
+                renderTable();
                 applyFilter('blue');
             }});
+
+            function renderTable() {{
+                const table = document.querySelector('#wrapper table');
+                if (!gridData || gridData.length === 0) {{
+                    table.innerHTML = "<tr><td>데이터가 없습니다.</td></tr>";
+                    return;
+                }}
+
+                let html = '<tbody>';
+                gridData.forEach(row => {{
+                    html += '<tr>';
+                    row.forEach(cell => {{
+                        if(cell) {{
+                            // 파이썬에서 가져온 HTML 스타일을 그대로 적용
+                            html += `<${{cell.tag}} class="${{cell.cls}}" style="${{cell.style}}">${{cell.html}}</${{cell.tag}}>`;
+                        }} else {{
+                            html += '<td></td>';
+                        }}
+                    }});
+                    html += '</tr>';
+                }});
+                html += '</tbody>';
+                table.innerHTML = html;
+            }}
 
             function applyFilter(team) {{
                 document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
                 document.querySelector(`.btn-${{team}}`).classList.add('active');
+                
                 const rows = Array.from(document.querySelectorAll('#wrapper tbody tr'));
-                rows.forEach(r => {{
-                    r.classList.remove('hidden-row');
-                    r.style.backgroundColor = '';
-                    const first = r.children[0];
-                    first.classList.remove('hidden-cell');
-                    first.setAttribute('rowspan', 1);
-                    Array.from(r.children).forEach(c => {{ c.style.color = ''; c.style.fontWeight = ''; }});
-                }});
+                
                 let visible = rows.filter(r => {{
-                    const name = r.cells[r.cells.length-1].innerText.trim();
+                    // 이름은 마지막 셀에 있다고 가정
+                    const cells = r.querySelectorAll('td, th');
+                    if(cells.length === 0) return false;
+                    const name = cells[cells.length-1].innerText.trim();
+                    
                     if(team === 'all') return true;
                     if(team === 'blue') return blueTeam.some(m => name.includes(m));
                     if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
                     return false;
                 }});
-                rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
-                if(visible.length > 0) {{
-                    let lastCell = visible[0].cells[0], lastText = lastCell.innerText.trim(), count = 1;
-                    for(let i=1; i<visible.length; i++) {{
-                        const cur = visible[i].cells[0], curText = cur.innerText.trim();
-                        if(curText === lastText && curText !== "") {{ cur.classList.add('hidden-cell'); count++; lastCell.setAttribute('rowspan', count); }}
-                        else {{ lastCell = cur; lastText = curText; count = 1; }}
-                    }}
-                }}
-                const today = new Date(), tM = today.getMonth()+1, tD = today.getDate();
-                const list = document.getElementById('today-list'); list.innerHTML = '';
-                let todayCount = 0, currentIsToday = false;
-                visible.forEach(r => {{
-                    const dateCell = r.cells[0];
-                    if(!dateCell.classList.contains('hidden-cell')) {{
-                        const nums = dateCell.innerText.match(/\\d+/g);
-                        if(nums && nums.length >= 2) {{
-                            let m = parseInt(nums[0]), d = parseInt(nums[1]);
-                            if(nums.length>=3 && parseInt(nums[0])>2000) {{ m=parseInt(nums[1]); d=parseInt(nums[2]); }}
-                            currentIsToday = (m === tM && d === tD);
-                        }}
-                    }}
-                    if(currentIsToday) {{
-                        r.style.backgroundColor = '#fff1f2';
-                        Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
-                        const tds = r.querySelectorAll('td');
-                        if (tds.length >= 3) {{
-                            const title = tds[1].innerText.trim();
-                            const li = document.createElement('li');
-                            li.innerText = title; 
-                            list.appendChild(li); todayCount++;
-                        }}
+
+                rows.forEach(r => {{ 
+                    if(visible.includes(r)) {{
+                        r.classList.remove('hidden-row');
+                    }} else {{
+                        r.classList.add('hidden-row');
                     }}
                 }});
-                if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
+
+                // 오늘 일정 요약 업데이트
+                updateSummary(visible);
+            }}
+
+            function updateSummary(visibleRows) {{
+                const today = new Date();
+                const tM = today.getMonth() + 1;
+                const tD = today.getDate();
+                const list = document.getElementById('today-list'); 
+                list.innerHTML = '';
+                
+                let count = 0;
+                let isTodayGroup = false;
+
+                visibleRows.forEach(r => {{
+                    const cells = r.querySelectorAll('td, th');
+                    if(cells.length < 3) return;
+
+                    const dateText = cells[0].innerText;
+                    const nums = dateText.match(/\\d+/g);
+                    
+                    if(nums && nums.length >= 2) {{
+                        let m = parseInt(nums[0]);
+                        let d = parseInt(nums[1]);
+                        if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{ m = parseInt(nums[1]); d = parseInt(nums[2]); }}
+                        
+                        isTodayGroup = (m === tM && d === tD);
+                    }}
+
+                    if(isTodayGroup) {{
+                        r.style.backgroundColor = '#fff1f2'; // 하이라이트
+                        // 일정명은 보통 index 2 (없으면 index 1)
+                        const title = cells[2] ? cells[2].innerText.trim() : cells[1].innerText.trim();
+                        const li = document.createElement('li');
+                        li.innerText = title;
+                        list.appendChild(li);
+                        count++;
+                    }} else {{
+                        r.style.backgroundColor = ''; 
+                    }}
+                }});
+
+                if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }}
         </script>
     </body>
