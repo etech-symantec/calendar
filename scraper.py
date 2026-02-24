@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+import re
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta, timezone
 
@@ -17,9 +18,8 @@ def run(playwright):
     USER_PW = os.environ.get("MY_SITE_PW", "")
     JANDI_URL = os.environ.get("JANDI_WEBHOOK_URL", "")
 
-    # [LOG] Check sensitive variables (masked)
+    # [LOG] Check sensitive variables
     print(f"[DEBUG] USER_ID: {'***' + USER_ID[-2:] if len(USER_ID) > 2 else '***'} (Length: {len(USER_ID)})")
-    print(f"[DEBUG] USER_PW: {'***' + USER_PW[-1:] if len(USER_PW) > 1 else '***'} (Length: {len(USER_PW)})")
     print(f"[DEBUG] JANDI_URL: {'Set' if JANDI_URL else 'Not Set'}")
 
     print("1. Accessing login page and schedule page...")
@@ -28,16 +28,15 @@ def run(playwright):
     page.fill('#userPw', USER_PW)
     page.press('#userPw', 'Enter')
     page.wait_for_load_state('networkidle')
-    time.sleep(3) # Slightly increased loading time
+    time.sleep(3)
 
     print("2. Clicking top 'Schedule' menu...")
-    page.click('#topMenu300000000', timeout=20000) # Timeout increased to 20s
+    page.click('#topMenu300000000', timeout=20000)
     page.wait_for_load_state('networkidle')
     time.sleep(3)
 
     print("3. Clicking left 'View All Shared Schedules' menu...")
     try:
-        # Wait 20 seconds
         page.click('#301040000_all_anchor', timeout=20000)
     except:
         print("[DEBUG] Selector click failed, retrying with text locator...")
@@ -47,7 +46,6 @@ def run(playwright):
     print("4. Clicking 'Schedule List' tab in right content...")
     frame = page.frame_locator('#_content')
     try:
-        # Previously errored part: changed 5000 -> 20000 (20s) to wait sufficiently
         frame.locator('text="일정목록"').click(timeout=20000)
     except:
         print("[DEBUG] Frame locator failed, retrying on main page...")
@@ -57,128 +55,136 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5. [Existing Logic] Extract HTML for Dashboard
+    # 5. Extract HTML for Dashboard (Keep existing logic)
     # ------------------------------------------------------------------
     print("5. Extracting Dashboard HTML...")
     extracted_html = ""
     try:
         extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
     except Exception as e:
-        print(f"[DEBUG] Frame extraction error: {e}")
+        print(f"[DEBUG] Extraction error: {e}")
         try:
             extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
-        except Exception as e2:
-            print(f"[DEBUG] Page extraction error: {e2}")
+        except:
             extracted_html = "<p>Failed to load data.</p>"
-    
-    # [LOG] Check extracted HTML length
-    print(f"[DEBUG] Length of extracted_html: {len(extracted_html)} chars")
+    print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
 
     # ------------------------------------------------------------------
-    # 6. [NEW] Extract Blue Team's Today Schedule separately (for Jandi)
+    # 6. [NEW] Python-side Calculation for Jandi
     # ------------------------------------------------------------------
-    print("6. Analyzing today's schedule for Jandi transmission...")
+    print("6. Calculating Blue Team's Today Schedule (Python Logic)...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[DEBUG] Target Date: {now.month}/{now.day}")
+
+    today_blue_events = []
     
-    # [LOG] Check Time
-    print(f"[DEBUG] Current KST Time: {kst_now_str}")
-    print(f"[DEBUG] Target Date: Month={now.month}, Day={now.day}")
-
-    jandi_extraction_js = """
-    (dateInfo) => {
-        const div = document.querySelector('#customListMonthDiv');
-        // rawHtml is used as a key for error handling in Python
-        if (!div) return { rawHtml: "", todayBlueEvents: [] };
-        
-        const table = div.querySelector('table');
-        if (!table) return { rawHtml: div.innerHTML, todayBlueEvents: [] };
-
-        const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
-        const trs = Array.from(table.querySelectorAll('tr'));
-        const grid = [];
-
-        // 1. Table Flattening
-        trs.forEach((tr, r) => {
-            if (!grid[r]) grid[r] = [];
-            let c = 0;
-            Array.from(tr.children).forEach(cell => {
-                while (grid[r][c]) c++;
-                const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
-                const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
-                const text = cell.innerText.trim();
-                for (let rr = 0; rr < rowspan; rr++) {
-                    for (let cc = 0; cc < colspan; cc++) {
-                        if (!grid[r + rr]) grid[r + rr] = [];
-                        grid[r + rr][c + cc] = text;
-                    }
-                }
-            });
-        });
-
-        // 2. Filter Today & Blue Team
-        const targetM = dateInfo.month;
-        const targetD = dateInfo.day;
-        const events = [];
-
-        grid.forEach(row => {
-            if (!row || row.length < 3) return;
-
-            const dateTxt = row[0];
-            const nameTxt = row[row.length - 1];
-            // Event name: usually at index 2, check safely (if missing, check index 1)
-            const titleTxt = row[2] || row[1];
-
-            const nums = dateTxt.replace(/\\s+/g, '').match(/\\d+/g);
-            if (!nums || nums.length < 2) return;
-
-            let m = parseInt(nums[0]);
-            let d = parseInt(nums[1]);
-            if (nums.length >= 3 && parseInt(nums[0]) > 2000) {
-                m = parseInt(nums[1]);
-                d = parseInt(nums[2]);
-            }
-
-            if (m === targetM && d === targetD) {
-                if (blueTeam.some(member => nameTxt.includes(member))) {
-                    if (!events.includes(titleTxt)) {
-                        events.push(titleTxt);
-                    }
-                }
-            }
-        });
-
-        return {
-            rawHtml: div.innerHTML,
-            todayBlueEvents: events
-        };
-    }
-    """
-
-    # result = {"rawHtml": "", "todayBlueEvents": []}
-    extraction_result_obj = {} # Renamed for clarity in logging
     try:
-        print("[DEBUG] Executing JS in frame...")
-        extraction_result_obj = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
-    except:
+        # 1. Locate the table
+        # Try finding the table handle in frame or page
+        table_handle = None
         try:
-            print("[DEBUG] Executing JS in page...")
-            extraction_result_obj = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
-        except Exception as e:
-            print(f"⚠️ Data analysis failed: {e}")
-            extraction_result_obj = {}
+            table_handle = frame.locator('#customListMonthDiv table')
+            if table_handle.count() == 0: raise Exception("No table in frame")
+        except:
+            table_handle = page.locator('#customListMonthDiv table')
+        
+        if table_handle and table_handle.count() > 0:
+            # 2. Get all row data (text, rowspan, colspan) using JS evaluation for speed
+            # We fetch raw data structures, then process logic in Python
+            rows_data = table_handle.first.evaluate("""(table) => {
+                const rows = Array.from(table.rows);
+                return rows.map(tr => {
+                    return Array.from(tr.children).map(cell => ({
+                        text: cell.innerText.trim(),
+                        rowspan: parseInt(cell.getAttribute('rowspan') || 1, 10),
+                        colspan: parseInt(cell.getAttribute('colspan') || 1, 10)
+                    }));
+                });
+            }""")
 
-    # Extract list using key 'todayBlueEvents'
-    today_blue_events = extraction_result_obj.get('todayBlueEvents', [])
-    
-    # [LOG] Extracted Events
-    print(f"[DEBUG] today_blue_events content: {today_blue_events}")
-    print(f"[DEBUG] Count of events found: {len(today_blue_events)}")
+            # 3. Python-side Table Flattening
+            grid = []
+            for r_idx, row in enumerate(rows_data):
+                # Ensure grid has enough rows
+                while len(grid) <= r_idx:
+                    grid.append([])
+                
+                c_idx = 0
+                for cell in row:
+                    # Skip filled cells
+                    while c_idx < len(grid[r_idx]) and grid[r_idx][c_idx] is not None:
+                        c_idx += 1
+                    
+                    # Fill cell data based on rowspan/colspan
+                    text = cell['text']
+                    rowspan = cell['rowspan']
+                    colspan = cell['colspan']
+                    
+                    for rr in range(rowspan):
+                        target_row = r_idx + rr
+                        while len(grid) <= target_row:
+                            grid.append([])
+                        
+                        for cc in range(colspan):
+                            target_col = c_idx + cc
+                            # Expand grid columns if needed
+                            while len(grid[target_row]) <= target_col:
+                                grid[target_row].append(None)
+                            
+                            grid[target_row][target_col] = text
+                    
+                    c_idx += colspan
+
+            # 4. Filter Logic (Python)
+            blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
+            
+            print(f"[DEBUG] Processed {len(grid)} rows in Python.")
+            
+            for row in grid:
+                if len(row) < 3: continue
+
+                date_txt = row[0]
+                # Assuming Name is last, Title is 3rd (index 2) or 2nd (index 1)
+                name_txt = row[-1]
+                title_txt = row[2] if len(row) > 2 else row[1]
+
+                # Parse Date
+                # Remove spaces
+                clean_date = re.sub(r'\s+', '', date_txt)
+                # Find all numbers
+                nums = re.findall(r'\d+', clean_date)
+                
+                if len(nums) < 2: continue
+                
+                m = int(nums[0])
+                d = int(nums[1])
+                
+                # Handle year if present (e.g., 2026.02.24)
+                if len(nums) >= 3 and int(nums[0]) > 2000:
+                    m = int(nums[1])
+                    d = int(nums[2])
+
+                # Check conditions
+                if m == now.month and d == now.day:
+                    is_blue = any(member in name_txt for member in blue_team)
+                    if is_blue:
+                        if title_txt and title_txt not in today_blue_events:
+                            today_blue_events.append(title_txt)
+                            print(f"[DEBUG] Found Event: {title_txt} (Name: {name_txt})")
+
+        else:
+            print("[ERROR] Table not found for data extraction.")
+
+    except Exception as e:
+        print(f"[ERROR] Python calculation failed: {e}")
+
+    print(f"[DEBUG] Final list for Jandi: {today_blue_events}")
 
     # ------------------------------------------------------------------
-    # 7. Create index.html (Dashboard)
+    # 7. Create index.html
     # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
@@ -321,8 +327,7 @@ def run(playwright):
 
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html_template)
-    print(f"[DEBUG] list content: {list}")
-    print("✅ index.html 생성 완료!")
+    print("✅ index.html created!")
 
     # ------------------------------------------------------------------
     # 8. Jandi Notification Transmission
