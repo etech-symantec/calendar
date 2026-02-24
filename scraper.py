@@ -149,7 +149,7 @@ def run(playwright):
 
     # KeyError 방지를 위한 .get() 사용
     today_blue_events = result.get('todayBlueEvents', [])
-    print("✅ today_blue_events: " {today_blue_evenets})
+    print("✅ today_blue_events: ", {today_blue_evenets})
 
     # ------------------------------------------------------------------
     # 7. index.html 생성 (대시보드)
