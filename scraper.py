@@ -67,7 +67,6 @@ def run(playwright):
             extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
         except:
             extracted_html = "<p>Failed to load data.</p>"
-    print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
 
     # ------------------------------------------------------------------
     # 6. [NEW] Python-side Calculation for Jandi
@@ -76,9 +75,12 @@ def run(playwright):
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
+    
+    # 요일 구하기 (0:월, 1:화, ... 6:일)
+    weekday_list = ["월", "화", "수", "목", "금", "토", "일"]
+    weekday_str = weekday_list[now.weekday()]
+    
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
-    print(f"[DEBUG] Target Date: {now.month}/{now.day}")
-
     today_blue_events = []
     
     try:
@@ -336,15 +338,18 @@ def run(playwright):
         print("[DEBUG] Jandi URL exists, proceeding with logic check...")
         if today_blue_events:
             print(f"🚀 [JANDI] Sending {len(today_blue_events)} Blue Team events...")
-            msg = f"🔥 **[블루팀] 오늘({now.month}/{now.day})의 일정입니다.**\n"
+            
+            # 🔥 [수정] 모든 내용을 합쳐서 body 변수 하나에 담습니다.
+            body_text = f"📢 **{now.month}/{now.day} {weekday_str} 일정**\n"
             for item in today_blue_events:
-                msg += f"- {item}\n"
+                body_text += f"- {item}\n"
             
             payload = {
-                "body": f"오늘의 블루팀 일정 ({now.month}/{now.day})",
+                "body": body_text,
                 "connectColor": "#00A1E9",
-                "connectInfo": [{ "title": "일정 목록", "description": msg }]
+                "connectInfo": [] # [수정] connectInfo는 비워둡니다.
             }
+            
             # [LOG] Payload content
             print(f"[DEBUG] Payload to send: {payload}")
 
