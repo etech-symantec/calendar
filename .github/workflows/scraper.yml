@@ -29,7 +29,7 @@ jobs:
         env: # ⬅️ 이 부분을 추가합니다! (금고에서 꺼내서 환경 변수로 전달)
           MY_SITE_ID: ${{ secrets.MY_SITE_ID }}
           MY_SITE_PW: ${{ secrets.MY_SITE_PW }}
-          JANDI_WEBHOOK_URL: ${{ secrets.JANDI_WEBHOOK_URL }}
+          JANDI_WEBHOOK_URL: ${{ vars.JANDI_WEBHOOK_URL }}
         run: python scraper.py
         
       - name: 5. 변경된 HTML 파일 커밋 및 푸시
