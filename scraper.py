@@ -1,6 +1,6 @@
 import os
 import time
-import requests  # 👈 잔디 발송을 위해 추가된 라이브러리
+import requests
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta, timezone
 
@@ -9,65 +9,135 @@ def run(playwright):
     context = browser.new_context()
     page = context.new_page()
 
-    # 환경변수 가져오기
+    # 환경변수 로드
     USER_ID = os.environ.get("MY_SITE_ID", "")
     USER_PW = os.environ.get("MY_SITE_PW", "")
-    JANDI_URL = os.environ.get("JANDI_WEBHOOK_URL", "") # 👈 잔디 웹훅 URL
+    # Secrets에 넣었다면 아래 코드로 충분합니다. 
+    # 만약 Variables 탭에 두셨다면 os.environ.get("JANDI_WEBHOOK_URL")로 가져옵니다.
+    JANDI_URL = os.environ.get("JANDI_WEBHOOK_URL", "")
 
-    print("1. 로그인 페이지 접속 중...")
+    print("1. 로그인 및 일정 페이지 접속 중...")
     page.goto("http://gwa.youngwoo.co.kr/") 
-    
     page.fill('#userId', USER_ID) 
     page.fill('#userPw', USER_PW)
     page.press('#userPw', 'Enter')
     page.wait_for_load_state('networkidle')
-    time.sleep(3)
+    time.sleep(2)
 
-    print("2. 상단 '일정' 메뉴 클릭 중...")
     page.click('#topMenu300000000') 
-    page.wait_for_load_state('networkidle')
-    time.sleep(3)
+    time.sleep(2)
 
-    print("3. 좌측 '공유일정 전체보기' 메뉴 클릭 중...")
     try:
         page.click('#301040000_all_anchor', timeout=5000)
-    except Exception:
+    except:
         page.locator('text="공유일정 전체보기"').click(timeout=5000)
-        
-    time.sleep(3)
+    time.sleep(2)
 
-    print("4. 우측 본문에서 '일정목록' 탭 클릭 중...")
     frame = page.frame_locator('#_content')
-    
     try:
         frame.locator('text="일정목록"').click(timeout=5000)
-    except Exception:
+    except:
         page.locator('text="일정목록"').click(timeout=5000)
 
-    print("일정목록 데이터 불러오는 중...")
+    print("2. 데이터 로딩 대기 중...")
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5. HTML 추출 및 대시보드 생성 (기존 로직 유지)
+    # 🌟 핵심: 대시보드 요약 로직을 브라우저에서 실행하고 결과(리스트)를 바로 가져옴
     # ------------------------------------------------------------------
-    print("5. 데이터 표 추출 중...")
-    extracted_html = ""
-    try:
-        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=5000)
-    except Exception:
-        extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=5000)
+    print("3. 블루팀 오늘 일정 추출 중 (요약 박스 데이터 추출)...")
     
+    combined_js_logic = """
+    (dateInfo) => {
+        const div = document.querySelector('#customListMonthDiv');
+        if (!div) return { html: "", todayBlueEvents: [] };
+        const table = div.querySelector('table');
+        if (!table) return { html: div.innerHTML, todayBlueEvents: [] };
+
+        const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
+        const trs = Array.from(table.rows);
+        const grid = [];
+
+        // 1. 모든 행 평탄화 (rowspan 해제)
+        trs.forEach((tr, r) => {
+            if (!grid[r]) grid[r] = [];
+            let c = 0;
+            Array.from(tr.cells).forEach(cell => {
+                while (grid[r][c]) c++;
+                const rowspan = cell.rowSpan || 1;
+                const colspan = cell.colSpan || 1;
+                const innerHTML = cell.innerHTML;
+                const text = cell.innerText.trim();
+                const tagName = cell.tagName;
+                for (let rr = 0; rr < rowspan; rr++) {
+                    for (let cc = 0; cc < colspan; cc++) {
+                        if (!grid[r + rr]) grid[r + rr] = [];
+                        grid[r + rr][c + cc] = { tagName, innerHTML, text };
+                    }
+                }
+            });
+        });
+
+        // 2. 오늘 날짜 및 블루팀 필터링 (잔디 전송용)
+        const tM = dateInfo.month;
+        const tD = dateInfo.day;
+        const todayBlueEvents = [];
+
+        grid.forEach(row => {
+            if (row.length < 3) return;
+            
+            // 날짜 확인 (첫 번째 칸)
+            const dateText = row[0].text.replace(/\\s+/g, '');
+            const nums = dateText.match(/\\d+/g);
+            if (!nums || nums.length < 2) return;
+            
+            let m = parseInt(nums[0], 10);
+            let d = parseInt(nums[1], 10);
+            if(nums.length >= 3 && parseInt(nums[0]) > 2000) { m = parseInt(nums[1], 10); d = parseInt(nums[2], 10); }
+
+            if (m === tM && d === tD) {
+                // 이름 확인 (마지막 칸)
+                const name = row[row.length - 1].text;
+                if (blueTeam.some(mem => name.includes(mem))) {
+                    // 일정명 (중간 칸 - 제목 열)
+                    // 보통 0:날짜, 1:시간, 2:일정명, 3:등록자 순서임
+                    const title = row[2] ? row[2].text : row[1].text;
+                    if (title && !todayBlueEvents.includes(title)) {
+                        todayBlueEvents.push(title);
+                    }
+                }
+            }
+        });
+
+        return {
+            rawHtml: div.innerHTML,
+            todayBlueEvents: todayBlueEvents
+        };
+    }
+    """
+
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
-    kst_now = now.strftime('%Y-%m-%d %H:%M:%S')
+    
+    result = {"rawHtml": "", "todayBlueEvents": []}
+    try:
+        result = frame.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
+    except:
+        result = page.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
 
-    # (기존 HTML 템플릿 코드는 그대로 유지 - 생략 없이 넣어주세요)
+    extracted_html = result['rawHtml']
+    blue_events = result['todayBlueEvents']
+    kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+
+    # ------------------------------------------------------------------
+    # 4. index.html 생성 (기존 대시보드 코드 유지)
+    # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <title>일정목록 대시보드</title>
+        <title>일정 대시보드</title>
         <style>
             body {{ font-family: 'Pretendard', sans-serif; padding: 15px; background-color: #f8f9fa; color: #333; font-size: 11px; }}
             h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 8px; margin: 0 0 10px 0; font-size: 16px; }}
@@ -83,14 +153,12 @@ def run(playwright):
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
             .summary-box {{ background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
             .summary-box h3 {{ margin: 0 0 8px 0; color: #e11d48; font-size: 13px; }}
-            .summary-box ul {{ margin: 0; padding-left: 15px; line-height: 1.5; color: #333; }}
+            .summary-box ul {{ margin: 0; padding-left: 20px; line-height: 1.5; color: #333; }}
             .summary-box li {{ padding: 3px 0; border-bottom: 1px dashed #ffe4e6; }}
-            .summary-box li:last-child {{ border-bottom: none; }}
             .table-container {{ background: #fff; padding: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; max-height: 80vh; }}
             table {{ border-collapse: collapse !important; width: 100% !important; }}
             table, th, td {{ border: 1px solid #d1d5db !important; padding: 6px 8px !important; text-align: center; white-space: nowrap; font-size: 11px; }}
             th {{ background-color: #e5e7eb !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; color: #374151; }}
-            tbody tr:hover td, tbody tr:hover th {{ background-color: #f3f4f6 !important; transition: 0.1s; }}
             .hidden-row {{ display: none !important; }}
             .hidden-cell {{ display: none !important; }}
         </style>
@@ -108,153 +176,90 @@ def run(playwright):
             <h3>🔥 선택된 팀의 오늘 일정</h3>
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
-        <p class="sync-time">Update: {kst_now}</p>
-        <div class="table-container" id="schedule-table-wrapper">{extracted_html}</div>
+        <p class="sync-time">Update: {kst_now_str}</p>
+        <div class="table-container" id="wrapper">{extracted_html}</div>
         <script>
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
-            let currentFilter = 'blue';
             document.addEventListener("DOMContentLoaded", function() {{
-                flattenTableAndInit();
-                applyFilter('blue'); 
-            }});
-            function flattenTableAndInit() {{
-                const wrapper = document.getElementById('schedule-table-wrapper');
-                const table = wrapper.querySelector('table');
-                if (!table) return;
-                const trs = Array.from(table.querySelectorAll('tr'));
-                if (table.dataset.flattened) return;
+                const table = document.querySelector('#wrapper table');
+                if(!table) return;
+                const trs = Array.from(table.rows);
                 const grid = [];
                 trs.forEach((tr, r) => {{
                     if (!grid[r]) grid[r] = [];
                     let c = 0;
-                    Array.from(tr.children).forEach(cell => {{
+                    Array.from(tr.cells).forEach(cell => {{
                         while (grid[r][c]) c++;
-                        const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
-                        const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
-                        const html = cell.innerHTML;
-                        const tagName = cell.tagName;
-                        const className = cell.className;
-                        const style = cell.getAttribute('style');
-                        for (let rr = 0; rr < rowspan; rr++) {{
-                            for (let cc = 0; cc < colspan; cc++) {{
+                        const rs = cell.rowSpan || 1;
+                        const cs = cell.colSpan || 1;
+                        for (let rr = 0; rr < rs; rr++) {{
+                            for (let cc = 0; cc < cs; cc++) {{
                                 if (!grid[r + rr]) grid[r + rr] = [];
-                                grid[r + rr][c + cc] = {{ html, tagName, className, style, isOriginal: (rr===0 && cc===0) }};
+                                grid[r + rr][c + cc] = {{ html: cell.innerHTML, tag: cell.tagName, cls: cell.className }};
                             }}
                         }}
                     }});
                 }});
-                let newHtml = '<tbody>';
+                let newBody = '<tbody>';
                 for (let r = 0; r < grid.length; r++) {{
-                    newHtml += '<tr>';
-                    if (grid[r]) {{
-                        grid[r].forEach(cell => {{
-                            let cellHtml = `<${{cell.tagName}} class="${{cell.className}}" style="${{cell.style || ''}}">${{cell.html}}</${{cell.tagName}}>`;
-                            newHtml += cellHtml;
-                        }});
-                    }}
-                    newHtml += '</tr>';
+                    newBody += '<tr>';
+                    grid[r].forEach(cell => {{ newBody += `<${{cell.tag}} class="${{cell.cls}}">${{cell.html}}</${{cell.tag}}>`; }});
+                    newBody += '</tr>';
                 }}
-                newHtml += '</tbody>';
-                table.innerHTML = newHtml;
-                table.dataset.flattened = "true";
-            }}
+                table.innerHTML = newBody + '</tbody>';
+                applyFilter('blue');
+            }});
+
             function applyFilter(team) {{
-                currentFilter = team;
-                document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
                 document.querySelector(`.btn-${{team}}`).classList.add('active');
-                const rows = document.querySelectorAll('.table-container tbody tr');
-                rows.forEach(row => {{
-                    row.classList.remove('hidden-row');
-                    row.style.backgroundColor = '';
-                    const firstCell = row.children[0]; 
-                    if(firstCell) {{
-                        firstCell.classList.remove('hidden-cell');
-                        firstCell.setAttribute('rowspan', 1);
-                        firstCell.style.color = '';
-                        firstCell.style.fontWeight = '';
-                    }}
-                    Array.from(row.children).forEach(c => {{
-                        if(c !== firstCell) {{ c.style.color = ''; c.style.fontWeight = ''; }}
-                    }});
+                const rows = Array.from(document.querySelectorAll('#wrapper tbody tr'));
+                rows.forEach(r => {{
+                    r.classList.remove('hidden-row');
+                    r.style.backgroundColor = '';
+                    const first = r.children[0];
+                    first.classList.remove('hidden-cell');
+                    first.setAttribute('rowspan', 1);
+                    Array.from(r.children).forEach(c => {{ c.style.color = ''; c.style.fontWeight = ''; }});
                 }});
-                let visibleRows = [];
-                rows.forEach(row => {{
-                    const tds = row.querySelectorAll('td');
-                    if (tds.length < 2) return; 
-                    const nameCell = tds[tds.length - 1]; 
-                    const name = nameCell ? nameCell.innerText.trim() : "";
-                    let isVisible = false;
-                    if (team === 'all') isVisible = true;
-                    else if (team === 'blue') isVisible = blueTeam.some(member => name.includes(member));
-                    else if (team === 'yellow') isVisible = yellowTeam.some(member => name.includes(member));
-                    if (isVisible) visibleRows.push(row);
-                    else row.classList.add('hidden-row');
+                let visible = rows.filter(r => {{
+                    const name = r.cells[r.cells.length-1].innerText.trim();
+                    if(team === 'all') return true;
+                    if(team === 'blue') return blueTeam.some(m => name.includes(m));
+                    if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
+                    return false;
                 }});
-                if (visibleRows.length > 0) {{
-                    let lastDateCell = visibleRows[0].children[0]; 
-                    let lastDateText = lastDateCell ? lastDateCell.innerText.trim() : "";
-                    let spanCount = 1;
-                    for (let i = 1; i < visibleRows.length; i++) {{
-                        const row = visibleRows[i];
-                        const dateCell = row.children[0]; 
-                        if (!dateCell) continue;
-                        const currentDateText = dateCell.innerText.trim();
-                        if (currentDateText === lastDateText && currentDateText !== "") {{
-                            dateCell.classList.add('hidden-cell');
-                            spanCount++;
-                            lastDateCell.setAttribute('rowspan', spanCount);
-                        }} else {{
-                            lastDateCell = dateCell;
-                            lastDateText = currentDateText;
-                            spanCount = 1;
-                        }}
+                rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
+                if(visible.length > 0) {{
+                    let lastCell = visible[0].cells[0], lastText = lastCell.innerText.trim(), count = 1;
+                    for(let i=1; i<visible.length; i++) {{
+                        const cur = visible[i].cells[0], curText = cur.innerText.trim();
+                        if(curText === lastText && curText !== "") {{ cur.classList.add('hidden-cell'); count++; lastCell.setAttribute('rowspan', count); }}
+                        else {{ lastCell = cur; lastText = curText; count = 1; }}
                     }}
                 }}
-                refreshTodaySummary(visibleRows);
-            }}
-            function refreshTodaySummary(visibleRows) {{
-                const today = new Date();
-                const tM = today.getMonth() + 1;
-                const tD = today.getDate();
-                const isToday = (text) => {{
-                    if(!text) return false;
-                    const clean = text.replace(/\\s+/g, '');
-                    const nums = clean.match(/\\d+/g);
-                    if(!nums || nums.length < 2) return false;
-                    let m = parseInt(nums[0], 10);
-                    let d = parseInt(nums[1], 10);
-                    if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{ m = parseInt(nums[1], 10); d = parseInt(nums[2], 10); }}
-                    return (m === tM && d === tD);
-                }};
-                const ul = document.getElementById('today-list');
-                ul.innerHTML = '';
-                let todayCount = 0;
-                let currentGroupIsToday = false; 
-                visibleRows.forEach(row => {{
-                    const dateCell = row.children[0];
-                    if (dateCell && !dateCell.classList.contains('hidden-cell')) {{
-                        currentGroupIsToday = isToday(dateCell.innerText);
-                    }}
-                    if (currentGroupIsToday) {{
-                        row.style.backgroundColor = '#fff1f2';
-                        Array.from(row.children).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
-                        const tds = row.querySelectorAll('td');
-                        if (tds.length >= 3) {{
-                            const title = tds[1].innerText.trim();
-                            const li = document.createElement('li');
-                            li.innerText = title; 
-                            ul.appendChild(li);
-                            todayCount++;
+                const today = new Date(), tM = today.getMonth()+1, tD = today.getDate();
+                const list = document.getElementById('today-list'); list.innerHTML = '';
+                let todayCount = 0, currentIsToday = false;
+                visible.forEach(r => {{
+                    const dateCell = r.cells[0];
+                    if(!dateCell.classList.contains('hidden-cell')) {{
+                        const nums = dateCell.innerText.match(/\\d+/g);
+                        if(nums && nums.length >= 2) {{
+                            let m = parseInt(nums[0]), d = parseInt(nums[1]);
+                            if(nums.length>=3 && parseInt(nums[0])>2000) {{ m=parseInt(nums[1]); d=parseInt(nums[2]); }}
+                            currentIsToday = (m === tM && d === tD);
                         }}
                     }}
+                    if(currentIsToday) {{
+                        r.style.backgroundColor = '#fff1f2';
+                        Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
+                        const li = document.createElement('li'); li.innerText = r.cells[2].innerText.trim();
+                        list.appendChild(li); todayCount++;
+                    }}
                 }});
-                if (todayCount === 0) {{
-                    const li = document.createElement('li');
-                    li.style.color = '#999';
-                    li.innerText = '선택된 팀의 오늘 일정이 없습니다. 🎉';
-                    ul.appendChild(li);
-                }}
+                if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }}
         </script>
     </body>
@@ -263,132 +268,34 @@ def run(playwright):
 
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html_template)
-        
     print("✅ index.html 생성 완료!")
 
     # ------------------------------------------------------------------
-    # 6. [NEW] 잔디(Jandi) 알림 발송 로직
+    # 5. 잔디 알림 전송 (JS에서 반환받은 blue_events 리스트 사용)
     # ------------------------------------------------------------------
     if JANDI_URL:
-        print("6. 잔디 알림 전송 준비 중...")
-        
-        # 브라우저 안에서 '오늘', '블루팀' 데이터를 추출하는 JS 실행
-        # (파이썬에서 복잡하게 파싱하는 것보다, 이미 만들어둔 JS 로직을 재사용하는 게 가장 정확합니다)
-        js_extract_jandi_data = """
-        (dateInfo) => {
-            const div = document.querySelector('#customListMonthDiv');
-            if (!div) return [];
-            const table = div.querySelector('table');
-            if (!table) return [];
-
-            const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
-            const trs = Array.from(table.querySelectorAll('tr'));
-            const todayEvents = [];
-
-            // 1. 평탄화 로직 (JS와 동일)
-            const grid = [];
-            trs.forEach((tr, r) => {
-                if (!grid[r]) grid[r] = [];
-                let c = 0;
-                Array.from(tr.children).forEach(cell => {
-                    while (grid[r][c]) c++;
-                    const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
-                    const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
-                    const text = cell.innerText.trim();
-                    for (let rr = 0; rr < rowspan; rr++) {
-                        for (let cc = 0; cc < colspan; cc++) {
-                            if (!grid[r + rr]) grid[r + rr] = [];
-                            grid[r + rr][c + cc] = { text };
-                        }
-                    }
-                });
-            });
-
-            // 2. 평탄화된 데이터에서 '오늘' & '블루팀' 찾기
-            const tM = dateInfo.month;
-            const tD = dateInfo.day;
-
-            grid.forEach(row => {
-                if (!row || row.length < 3) return;
-                
-                // 날짜 확인
-                const dateText = row[0].text;
-                const cleanDate = dateText.replace(/\s+/g, '');
-                const nums = cleanDate.match(/\d+/g);
-                if (!nums || nums.length < 2) return;
-                
-                let m = parseInt(nums[0], 10);
-                let d = parseInt(nums[1], 10);
-                if(nums.length >= 3 && parseInt(nums[0]) > 2000) { 
-                    m = parseInt(nums[1], 10); 
-                    d = parseInt(nums[2], 10); 
-                }
-
-                if (m === tM && d === tD) {
-                    // 이름 확인 (마지막 열)
-                    const name = row[row.length - 1].text;
-                    const isBlue = blueTeam.some(mem => name.includes(mem));
-                    
-                    if (isBlue) {
-                        // 일정명 추출 (중간 열 - 보통 index 1)
-                        const title = row[1].text;
-                        // 중복 방지
-                        if (!todayEvents.includes(title)) {
-                            todayEvents.push(title);
-                        }
-                    }
-                }
-            });
+        if blue_events:
+            print(f"🚀 블루팀 일정 {len(blue_events)}건 발견! 잔디 전송 중...")
+            msg = f"🔥 **[블루팀] 오늘({now.month}/{now.day})의 일정입니다.**\n"
+            for item in blue_events:
+                msg += f"- {item}\n"
             
-            return todayEvents;
-        }
-        """
-        
-        # 파이썬의 오늘 날짜 정보를 JS로 넘겨줍니다.
-        today_schedules = []
-        try:
-            today_schedules = frame.evaluate(js_extract_jandi_data, {"month": now.month, "day": now.day})
-        except:
-            # iframe이 아닐 경우 대비
-            today_schedules = page.evaluate(js_extract_jandi_data, {"month": now.month, "day": now.day})
-
-        if today_schedules:
-            print(f"🚀 전송할 일정 발견: {len(today_schedules)}개")
-            
-            # 잔디 메시지 포맷 구성
-            schedule_text = ""
-            for item in today_schedules:
-                schedule_text += f"- {item}\n"
-            
-            payload = {
-                "body": f"🔥 오늘({now.month}/{now.day})의 일정",
-                "connectColor": "#00A1E9", # 블루팀 컬러
-                "connectInfo": [
-                    {
-                        "title": "일정 목록",
-                        "description": schedule_text
-                    }
-                ]
-            }
-            
-            headers = {
-                "Accept": "application/vnd.tosslab.jandi-v2+json",
-                "Content-Type": "application/json"
-            }
+            payload = {{
+                "body": f"오늘의 블루팀 일정 ({now.month}/{now.day})",
+                "connectColor": "#00A1E9",
+                "connectInfo": [{{ "title": "일정 목록", "description": msg }}]
+            }}
+            headers = {{ "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }}
             
             try:
                 res = requests.post(JANDI_URL, json=payload, headers=headers)
-                if res.status_code == 200:
-                    print("✅ 잔디 알림 전송 성공!")
-                else:
-                    print(f"❌ 잔디 전송 실패: {res.status_code} {res.text}")
-            except Exception as e:
-                print(f"❌ 잔디 전송 중 에러 발생: {e}")
-                
+                if res.status_code == 200: print("✅ 잔디 전송 성공!")
+                else: print(f"❌ 잔디 실패: {res.status_code} {res.text}")
+            except Exception as e: print(f"❌ 잔디 에러: {e}")
         else:
-            print("📭 오늘은 블루팀 일정이 없습니다.")
+            print("📭 오늘은 블루팀 일정이 없습니다. (알림 생략)")
     else:
-        print("⚠️ JANDI_WEBHOOK_URL이 설정되지 않아 알림을 건너뜁니다.")
+        print("⚠️ JANDI_WEBHOOK_URL이 설정되지 않았습니다.")
 
     browser.close()
 
