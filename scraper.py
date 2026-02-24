@@ -5,77 +5,79 @@ from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta, timezone
 
 def run(playwright):
-    browser = playwright.chromium.launch(headless=True)
-    context = browser.new_context()
-    page = context.new_page()
-
-    # 환경변수 로드
+    print("--------------------------------------------------")
+    print("🚀 스크립트 시작: 환경 변수 점검")
+    
+    # 환경변수 로드 및 로그 출력 (비밀번호는 숨김)
     USER_ID = os.environ.get("MY_SITE_ID", "")
     USER_PW = os.environ.get("MY_SITE_PW", "")
     JANDI_URL = os.environ.get("JANDI_WEBHOOK_URL", "")
 
+    print(f"[DEBUG] USER_ID: {USER_ID[:2]}**** (길이: {len(USER_ID)})")
+    print(f"[DEBUG] USER_PW: {'*' * len(USER_PW)} (길이: {len(USER_PW)})")
+    print(f"[DEBUG] JANDI_URL 설정 여부: {'✅ 설정됨' if JANDI_URL else '❌ 미설정'}")
+    print("--------------------------------------------------")
+
+    browser = playwright.chromium.launch(headless=True)
+    context = browser.new_context()
+    page = context.new_page()
+
     print("1. 로그인 및 일정 페이지 접속 중...")
     page.goto("http://gwa.youngwoo.co.kr/") 
+    
+    print("[DEBUG] 로그인 정보 입력 중...")
     page.fill('#userId', USER_ID) 
     page.fill('#userPw', USER_PW)
     page.press('#userPw', 'Enter')
     page.wait_for_load_state('networkidle')
-    time.sleep(3) # 로딩 대기 시간 소폭 증가
+    time.sleep(3)
 
     print("2. 상단 '일정' 메뉴 클릭 중...")
-    page.click('#topMenu300000000', timeout=20000) # 타임아웃 20초로 증가
+    try:
+        page.click('#topMenu300000000', timeout=20000)
+    except Exception as e:
+        print(f"[ERROR] 상단 메뉴 클릭 실패: {e}")
+    
     page.wait_for_load_state('networkidle')
     time.sleep(3)
 
     print("3. 좌측 '공유일정 전체보기' 메뉴 클릭 중...")
     try:
-        # 20초 대기
         page.click('#301040000_all_anchor', timeout=20000)
     except:
+        print("[DEBUG] 선택자 #301040000_all_anchor 실패, 텍스트로 재시도")
         page.locator('text="공유일정 전체보기"').click(timeout=20000)
     time.sleep(3)
 
     print("4. 우측 본문에서 '일정목록' 탭 클릭 중...")
     frame = page.frame_locator('#_content')
     try:
-        # 에러가 났던 부분: 5000 -> 20000 (20초)으로 변경하여 충분히 기다리게 함
         frame.locator('text="일정목록"').click(timeout=20000)
     except:
+        print("[DEBUG] iframe 내부 클릭 실패, 메인 페이지에서 재시도")
         page.locator('text="일정목록"').click(timeout=20000)
 
     print("✅ 페이지 진입 성공! 데이터 로딩 대기 중...")
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5. [기존 유지] 대시보드용 HTML 추출
+    # 5. 데이터 추출
     # ------------------------------------------------------------------
-    print("5. 대시보드용 HTML 추출 중...")
-    extracted_html = ""
-    try:
-        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
-    except Exception:
-        try:
-            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
-        except:
-            extracted_html = "<p>데이터를 불러오지 못했습니다.</p>"
-
-    # ------------------------------------------------------------------
-    # 6. [NEW] 오늘 날짜 블루팀 일정만 별도로 추출 (잔디 전송용)
-    # ------------------------------------------------------------------
-    print("6. 잔디 전송을 위한 오늘 일정 분석 중...")
+    print("5. 데이터 분석 및 추출 중...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    
+    print(f"[DEBUG] 기준 날짜(KST): {now.month}월 {now.day}일")
 
-    jandi_extraction_js = """
+    extraction_js = """
     (dateInfo) => {
         const div = document.querySelector('#customListMonthDiv');
-        // rawHtml은 파이썬에서 에러 처리용 키로 사용
-        if (!div) return { rawHtml: "", todayBlueEvents: [] };
+        if (!div) return { rawHtml: "", todayBlueEvents: [], status: "DIV_NOT_FOUND" };
         
         const table = div.querySelector('table');
-        if (!table) return { rawHtml: div.innerHTML, todayBlueEvents: [] };
+        if (!table) return { rawHtml: div.innerHTML, todayBlueEvents: [], status: "TABLE_NOT_FOUND" };
 
         const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
         const trs = Array.from(table.querySelectorAll('tr'));
@@ -99,32 +101,31 @@ def run(playwright):
             });
         });
 
-        // 2. 오늘 날짜 & 블루팀 필터링
+        // 2. 필터링
         const targetM = dateInfo.month;
         const targetD = dateInfo.day;
         const events = [];
 
         grid.forEach(row => {
-            if (!row || row.length < 3) return;
+            if (!row || row.length < 4) return;
 
             const dateTxt = row[0];
-            const nameTxt = row[row.length - 1];
-            // 일정명: 보통 index 2에 있으나 안전하게 확인 (없으면 index 1)
-            const titleTxt = row[2] || row[1];
+            const titleTxt = row[2]; 
+            const nameTxt = row[3];
 
             const nums = dateTxt.replace(/\\s+/g, '').match(/\\d+/g);
             if (!nums || nums.length < 2) return;
-
+            
             let m = parseInt(nums[0]);
             let d = parseInt(nums[1]);
-            if (nums.length >= 3 && parseInt(nums[0]) > 2000) {
-                m = parseInt(nums[1]);
-                d = parseInt(nums[2]);
+            if(nums.length >= 3 && parseInt(nums[0]) > 2000) { 
+                m = parseInt(nums[1]); 
+                d = parseInt(nums[2]); 
             }
 
             if (m === targetM && d === targetD) {
                 if (blueTeam.some(member => nameTxt.includes(member))) {
-                    if (!events.includes(titleTxt)) {
+                    if (titleTxt && !events.includes(titleTxt)) {
                         events.push(titleTxt);
                     }
                 }
@@ -133,26 +134,40 @@ def run(playwright):
 
         return {
             rawHtml: div.innerHTML,
-            todayBlueEvents: events
+            todayBlueEvents: events,
+            status: "SUCCESS"
         };
     }
     """
 
-    # result = {"rawHtml": "", "todayBlueEvents": []}
-    today_blue_events = []
+    extraction_result = {}
     try:
-        today_blue_events = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+        print("[DEBUG] JS 실행 시도 (iframe)...")
+        extraction_result = frame.evaluate(extraction_js, {"month": now.month, "day": now.day})
     except:
+        print("[DEBUG] iframe 실패, 메인 페이지에서 JS 실행 시도...")
         try:
-            today_blue_events = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+            extraction_result = page.evaluate(extraction_js, {"month": now.month, "day": now.day})
         except Exception as e:
-            print(f"⚠️ 데이터 분석 실패: {e}")
-
-    # KeyError 방지를 위한 .get() 사용
-    # today_blue_events = result.get('todayBlueEvents', [])
+            print(f"[ERROR] 데이터 분석 JS 실행 완전 실패: {e}")
+            extraction_result = {"rawHtml": "<p>Error</p>", "todayBlueEvents": [], "status": "JS_ERROR"}
 
     # ------------------------------------------------------------------
-    # 7. index.html 생성 (대시보드)
+    # 로그 출력: 추출 결과 확인
+    # ------------------------------------------------------------------
+    status = extraction_result.get('status', 'UNKNOWN')
+    extracted_html = extraction_result.get('rawHtml', "")
+    final_events_list = extraction_result.get('todayBlueEvents', [])
+
+    print(f"--------------------------------------------------")
+    print(f"[DEBUG] JS 실행 상태: {status}")
+    print(f"[DEBUG] 추출된 HTML 길이: {len(extracted_html)} 자")
+    print(f"[DEBUG] 추출된 오늘 블루팀 일정({len(final_events_list)}건):")
+    print(f"{final_events_list}")
+    print(f"--------------------------------------------------")
+
+    # ------------------------------------------------------------------
+    # 6. index.html 생성
     # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
@@ -298,13 +313,13 @@ def run(playwright):
     print("✅ index.html 생성 완료!")
 
     # ------------------------------------------------------------------
-    # 8. 잔디 알림 전송 (Jandi)
+    # 7. 잔디 알림 전송 (Jandi)
     # ------------------------------------------------------------------
     if JANDI_URL:
-        if today_blue_events:
-            print(f"🚀 [JANDI] 블루팀 일정 {len(today_blue_events)}건 전송 시작")
+        if final_events_list:
+            print(f"🚀 [JANDI] 블루팀 일정 {len(final_events_list)}건 전송 시작")
             msg = f"🔥 **[블루팀] 오늘({now.month}/{now.day})의 일정입니다.**\n"
-            for item in today_blue_events:
+            for item in final_events_list:
                 msg += f"- {item}\n"
             
             payload = {
@@ -314,11 +329,17 @@ def run(playwright):
             }
             headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
             
+            print(f"[DEBUG] 잔디 전송 Payload 미리보기:\n{payload}")
+
             try:
                 res = requests.post(JANDI_URL, json=payload, headers=headers)
-                if res.status_code == 200: print("✅ 잔디 전송 성공!")
-                else: print(f"❌ 잔디 실패: {res.status_code} {res.text}")
-            except Exception as e: print(f"❌ 잔디 에러: {e}")
+                print(f"[DEBUG] 잔디 응답 코드: {res.status_code}")
+                if res.status_code == 200:
+                    print("✅ 잔디 전송 성공!")
+                else:
+                    print(f"❌ 잔디 실패: {res.status_code} {res.text}")
+            except Exception as e:
+                print(f"❌ 잔디 에러: {e}")
         else:
             print("📭 [JANDI] 오늘은 블루팀 일정이 없습니다.")
     else:
