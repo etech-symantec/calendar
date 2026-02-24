@@ -68,7 +68,7 @@ def run(playwright):
     now = datetime.now(kst)
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
-    jandi_extraction_js = """
+    extraction_js = """
     (dateInfo) => {
         const div = document.querySelector('#customListMonthDiv');
         // rawHtml은 파이썬에서 에러 처리용 키로 사용
