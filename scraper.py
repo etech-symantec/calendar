@@ -138,7 +138,7 @@ def run(playwright):
     }
     """
 
-    result = {"rawHtml": "", "todayBlueEvents": []}
+    # result = {"rawHtml": "", "todayBlueEvents": []}
     today_blue_events = []
     try:
         today_blue_events = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
