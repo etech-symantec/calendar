@@ -31,31 +31,41 @@ def run(playwright):
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # [변경됨] 2. 상단 '자원관리' 메뉴 클릭
+    # [변경됨] 2. 상단 '일정' 메뉴 클릭
     # ------------------------------------------------------------------
-    print("2. Clicking top '자원관리' (Resource Management) menu...")
+    print("2. Clicking top '일정' (Schedule) menu...")
     try:
-        # ID를 모르므로 텍스트로 찾아서 클릭합니다.
-        page.locator('text="자원관리"').first.click(timeout=20000)
+        # 기존에 사용했던 '일정' 메뉴 ID 재사용
+        page.click('#topMenu300000000', timeout=20000)
     except Exception as e:
-        print(f"[ERROR] '자원관리' 메뉴 클릭 실패: {e}")
+        print(f"[DEBUG] ID click failed, trying text: {e}")
+        page.locator('text="일정"').first.click(timeout=20000)
     
     page.wait_for_load_state('networkidle')
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # [변경됨] 3. 좌측 '자원캘린더' 메뉴 클릭
+    # [변경됨] 3. 좌측 '자원관리' -> '자원캘린더' 클릭
     # ------------------------------------------------------------------
-    print("3. Clicking left '자원캘린더' (Resource Calendar) menu...")
+    print("3. Clicking left '자원관리' -> '자원캘린더'...")
     try:
-        page.locator('text="자원캘린더"').first.click(timeout=20000)
+        # 1. 좌측 메뉴에서 '자원관리' 클릭 (폴더 열기)
+        print("   - Clicking '자원관리'...")
+        # 좌측 메뉴 영역(nav 등) 내의 텍스트를 찾는 것이 정확하나, 
+        # 구조상 visible한 텍스트를 순차적으로 클릭합니다.
+        page.locator('text="자원관리"').click(timeout=10000)
+        time.sleep(1) # 메뉴가 펼쳐지는 시간 대기
+
+        # 2. '자원캘린더' 클릭
+        print("   - Clicking '자원캘린더'...")
+        page.locator('text="자원캘린더"').click(timeout=10000)
     except Exception as e:
-        print(f"[ERROR] '자원캘린더' 메뉴 클릭 실패: {e}")
+        print(f"[ERROR] Left menu navigation failed: {e}")
         
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # 4. 우측 본문에서 '일정목록' 탭 클릭 (기존 유지)
+    # 4. 우측 본문에서 '일정목록' 탭 클릭
     # ------------------------------------------------------------------
     print("4. Clicking 'Schedule List' tab in right content...")
     frame = page.frame_locator('#_content')
@@ -74,14 +84,14 @@ def run(playwright):
     print("5. Extracting Dashboard HTML...")
     extracted_html = ""
     try:
-        # 자원관리 쪽 테이블 ID가 다를 수 있으나, 일단 기존 ID(#customListMonthDiv) 시도
+        # 테이블 ID가 동일하다고 가정 (#customListMonthDiv)
         extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
     except Exception as e:
         print(f"[DEBUG] Extraction error: {e}")
         try:
             extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
         except:
-            extracted_html = "<p>Failed to load data (ID might be different in Resource Manager).</p>"
+            extracted_html = "<p>Failed to load data.</p>"
     print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
 
     # ------------------------------------------------------------------
@@ -92,7 +102,7 @@ def run(playwright):
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
     
-    # 요일 구하기 (0:월, 1:화, ... 5:토, 6:일)
+    # 요일 구하기 (0:월, ... 6:일)
     weekday_index = now.weekday()
     weekday_list = ["월", "화", "수", "목", "금", "토", "일"]
     weekday_str = weekday_list[weekday_index]
