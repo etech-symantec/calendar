@@ -41,107 +41,110 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 🌟 핵심: 대시보드 요약 로직을 브라우저에서 실행하고 결과(리스트)를 바로 가져옴
+    # 3. [기존 유지] 대시보드용 HTML 추출
     # ------------------------------------------------------------------
-    print("3. 블루팀 오늘 일정 추출 중 (요약 박스 데이터 추출)...")
+    print("3. 대시보드용 HTML 추출 중...")
+    extracted_html = ""
+    try:
+        # customListMonthDiv 내부 HTML을 그대로 가져옴
+        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=5000)
+    except Exception:
+        try:
+            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=5000)
+        except:
+            extracted_html = "<p>데이터를 불러오지 못했습니다.</p>"
+
+    # ------------------------------------------------------------------
+    # 4. [NEW] 오늘 날짜 블루팀 일정만 별도로 추출 (잔디 전송용)
+    # ------------------------------------------------------------------
+    print("4. 잔디 전송을 위한 오늘 일정 분석 중...")
     
-    combined_js_logic = """
+    kst = timezone(timedelta(hours=9))
+    now = datetime.now(kst)
+    kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+
+    # 브라우저 내에서 테이블을 분석하여 '오늘'+'블루팀' 일정명 리스트만 반환하는 JS
+    jandi_extraction_js = """
     (dateInfo) => {
         const div = document.querySelector('#customListMonthDiv');
-        if (!div) return { rawHtml: "<p>일정을 찾을 수 없습니다.</p>", todayBlueEvents: [] };
-        
+        if (!div) return [];
         const table = div.querySelector('table');
-        if (!table) return { rawHtml: div.innerHTML, todayBlueEvents: [] };
+        if (!table) return [];
 
         const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
-        const trs = Array.from(table.rows);
+        const trs = Array.from(table.querySelectorAll('tr'));
+        
+        // 1. 테이블 평탄화 (병합된 셀을 풀어서 2차원 배열로 만듦)
         const grid = [];
-
-        // 1. 모든 행 평탄화 (rowspan 해제)
         trs.forEach((tr, r) => {
             if (!grid[r]) grid[r] = [];
             let c = 0;
-            Array.from(tr.cells).forEach(cell => {
-                while (grid[r][c]) c++;
+            Array.from(tr.children).forEach(cell => {
+                while (grid[r][c]) c++; // 이미 채워진 칸 건너뛰기
                 const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
                 const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
-                const innerHTML = cell.innerHTML;
                 const text = cell.innerText.trim();
-                const tagName = cell.tagName;
+                
                 for (let rr = 0; rr < rowspan; rr++) {
                     for (let cc = 0; cc < colspan; cc++) {
                         if (!grid[r + rr]) grid[r + rr] = [];
-                        grid[r + rr][c + cc] = { tagName, innerHTML, text };
+                        // 모든 칸에 텍스트 복사
+                        grid[r + rr][c + cc] = text;
                     }
                 }
             });
         });
 
-        // 2. 오늘 날짜 및 블루팀 필터링 (잔디 전송용)
-        const tM = dateInfo.month;
-        const tD = dateInfo.day;
-        const todayBlueEvents = [];
+        // 2. 오늘 날짜 & 블루팀 필터링
+        const targetM = dateInfo.month;
+        const targetD = dateInfo.day;
+        const events = [];
 
         grid.forEach(row => {
-            if (row.length < 3) return;
-            
-            // 날짜 확인 (첫 번째 칸)
-            const dateText = row[0].text.replace(/\\s+/g, '');
-            const nums = dateText.match(/\\d+/g);
-            if (!nums || nums.length < 2) return;
-            
-            let m = parseInt(nums[0], 10);
-            let d = parseInt(nums[1], 10);
-            if(nums.length >= 3 && parseInt(nums[0]) > 2000) { m = parseInt(nums[1], 10); d = parseInt(nums[2], 10); }
+            if (!row || row.length < 3) return; // 데이터가 적은 행 패스
 
-            if (m === tM && d === tD) {
-                // 이름 확인 (마지막 칸)
-                const name = row[row.length - 1].text;
-                if (blueTeam.some(mem => name.includes(mem))) {
-                    // 일정명 (중간 칸 - 제목 열)
-                    // 보통 0:날짜, 1:시간, 2:일정명, 3:등록자 순서임
-                    // 안전하게 3번째(index 2)를 가져오되, 없으면 2번째(index 1) 가져옴
-                    const titleObj = row[2] || row[1];
-                    const title = titleObj ? titleObj.text : "";
-                    
-                    if (title && !todayBlueEvents.includes(title)) {
-                        todayBlueEvents.push(title);
+            // 0번째: 날짜, ... 마지막: 이름, 중간(1 or 2): 일정명
+            const dateTxt = row[0];
+            const nameTxt = row[row.length - 1];
+            // 일정명은 보통 index 2에 있으나 안전하게 확인
+            const titleTxt = row[2] || row[1];
+
+            // 날짜 파싱
+            const nums = dateTxt.replace(/\\s+/g, '').match(/\\d+/g);
+            if (!nums || nums.length < 2) return;
+
+            let m = parseInt(nums[0]);
+            let d = parseInt(nums[1]);
+            // 연도가 포함된 경우 (2026.02.24) 처리
+            if (nums.length >= 3 && parseInt(nums[0]) > 2000) {
+                m = parseInt(nums[1]);
+                d = parseInt(nums[2]);
+            }
+
+            // 오늘 날짜인지 확인
+            if (m === targetM && d === targetD) {
+                // 블루팀 멤버인지 확인
+                if (blueTeam.some(member => nameTxt.includes(member))) {
+                    // 중복 제외하고 추가
+                    if (!events.includes(titleTxt)) {
+                        events.push(titleTxt);
                     }
                 }
             }
         });
 
-        return {
-            rawHtml: div.innerHTML,
-            todayBlueEvents: todayBlueEvents
-        };
+        return events;
     }
     """
 
-    kst = timezone(timedelta(hours=9))
-    now = datetime.now(kst)
-    
-    # 기본값 설정
-    result = {"rawHtml": "", "todayBlueEvents": []}
-    
+    today_blue_events = []
     try:
-        # iframe 내부 시도
-        result = frame.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
-    except Exception as e:
-        print(f"⚠️ iframe 내부 실행 실패, 메인 페이지에서 재시도: {e}")
-        try:
-            # 메인 페이지 시도
-            result = page.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
-        except Exception as e2:
-            print(f"❌ 데이터 추출 완전 실패: {e2}")
-            result = {"rawHtml": "<p>데이터 추출 실패</p>", "todayBlueEvents": []}
-
-    extracted_html = result.get('rawHtml', "")
-    blue_events = result.get('todayBlueEvents', [])
-    kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+        today_blue_events = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+    except:
+        today_blue_events = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
 
     # ------------------------------------------------------------------
-    # 4. index.html 생성 (기존 대시보드 코드 유지)
+    # 5. index.html 생성 (대시보드)
     # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
@@ -266,6 +269,7 @@ def run(playwright):
                     if(currentIsToday) {{
                         r.style.backgroundColor = '#fff1f2';
                         Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
+                        // 요약: 일정명만 출력 (td 중 2번째, index 1)
                         const tds = r.querySelectorAll('td');
                         if (tds.length >= 3) {{
                             const title = tds[1].innerText.trim();
@@ -287,13 +291,13 @@ def run(playwright):
     print("✅ index.html 생성 완료!")
 
     # ------------------------------------------------------------------
-    # 5. 잔디 알림 전송 (JS에서 반환받은 blue_events 리스트 사용)
+    # 6. 잔디 알림 전송 (Jandi)
     # ------------------------------------------------------------------
     if JANDI_URL:
-        if blue_events:
-            print(f"🚀 블루팀 일정 {len(blue_events)}건 발견! 잔디 전송 중...")
+        if today_blue_events:
+            print(f"🚀 [JANDI] 블루팀 일정 {len(today_blue_events)}건 전송 시작")
             msg = f"🔥 **[블루팀] 오늘({now.month}/{now.day})의 일정입니다.**\n"
-            for item in blue_events:
+            for item in today_blue_events:
                 msg += f"- {item}\n"
             
             payload = {
@@ -309,9 +313,9 @@ def run(playwright):
                 else: print(f"❌ 잔디 실패: {res.status_code} {res.text}")
             except Exception as e: print(f"❌ 잔디 에러: {e}")
         else:
-            print("📭 오늘은 블루팀 일정이 없습니다. (알림 생략)")
+            print("📭 [JANDI] 오늘은 블루팀 일정이 없습니다.")
     else:
-        print("⚠️ JANDI_WEBHOOK_URL이 설정되지 않았습니다.")
+        print("⚠️ JANDI_WEBHOOK_URL 미설정")
 
     browser.close()
 
