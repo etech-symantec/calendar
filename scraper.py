@@ -76,9 +76,10 @@ def run(playwright):
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
     
-    # 요일 구하기 (0:월, 1:화, ... 6:일)
+    # 요일 구하기 (0:월, 1:화, ... 5:토, 6:일)
+    weekday_index = now.weekday()
     weekday_list = ["월", "화", "수", "목", "금", "토", "일"]
-    weekday_str = weekday_list[now.weekday()]
+    weekday_str = weekday_list[weekday_index]
     
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     today_blue_events = []
