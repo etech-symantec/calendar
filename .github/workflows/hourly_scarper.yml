@@ -1,0 +1,42 @@
+name: Daily Web Scraper
+
+on:
+  schedule:
+    # 🌟 매 30분
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # 수동으로 실행할 수 있는 버튼 활성화 (테스트용으로 필수!)
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest # 가상 리눅스 환경에서 실행
+
+    steps:
+      - name: 1. 레포지토리 코드 가져오기 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 2. Python 환경 세팅
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 3. 패키지 및 브라우저 설치 (Playwright & Chromium)
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright requests
+          playwright install chromium
+
+      - name: 4. 파이썬 스크립트 실행 (웹 스크래핑 -> index.html 생성)
+        env: # ⬅️ 이 부분을 추가합니다! (금고에서 꺼내서 환경 변수로 전달)
+          MY_SITE_ID: ${{ secrets.MY_SITE_ID }}
+          MY_SITE_PW: ${{ secrets.MY_SITE_PW }}
+          JANDI_WEBHOOK_URL: ${{ secrets.JANDI_WEBHOOK_URL }}
+        run: python scraper.py
+        
+      - name: 5. 변경된 HTML 파일 커밋 및 푸시
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          # 변경 사항이 없을 경우 에러가 나지 않도록 예외 처리
+          git commit -m "Auto-update: 최신 테이블 데이터 갱신" || echo "No changes to commit"
+          git push
