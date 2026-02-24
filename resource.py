@@ -200,7 +200,7 @@ def run(playwright):
     print(f"[DEBUG] Blue Events: {len(today_blue_events)}, Yellow Events: {len(today_yellow_events)}")
 
     # ------------------------------------------------------------------
-    # 7. Create index.html
+    # 7. Create resource.html
     # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
@@ -341,65 +341,11 @@ def run(playwright):
     </html>
     """
 
-    with open("index.html", "w", encoding="utf-8") as f:
+    with open("resource.html", "w", encoding="utf-8") as f:
         f.write(html_template)
-    print("✅ index.html created!")
+    print("✅ resource.html created!")
 
-    # ------------------------------------------------------------------
-    # 8. Jandi Notification (Combined & Conditional)
-    # ------------------------------------------------------------------
-    if JANDI_URL:
-        print("[DEBUG] Jandi URL exists, proceeding...")
-        
-        # 주말 체크 (5:토요일, 6:일요일)
-        if weekday_index >= 5:
-            print(f"📭 [JANDI] 오늘은 주말({weekday_str}요일)이라 알림을 보내지 않습니다.")
-        
-        # 둘 중 하나라도 일정이 있으면 전송
-        elif today_blue_events or today_yellow_events:
-            print(f"🚀 [JANDI] Sending Combined Schedule...")
-            
-            # 메시지 작성 시작
-            body_text = f"📅 **오늘의 일정 ({now.month}/{now.day} {weekday_str})**\n\n"
-            
-            # 🔵 블루팀 섹션 (일정이 있는 경우에만 추가)
-            if today_blue_events:
-                body_text += "🔵 **[블루팀]**\n"
-                for item in today_blue_events:
-                    body_text += f"- {item}\n"
-                body_text += "\n" # 줄바꿈
-
-            # 🟡 옐로우팀 섹션 (일정이 있는 경우에만 추가)
-            if today_yellow_events:
-                body_text += "🟡 **[옐로우팀]**\n"
-                for item in today_yellow_events:
-                    body_text += f"- {item}\n"
-
-            # Payload 구성
-            payload = {
-                "body": body_text,
-                "connectColor": "#00A1E9", # 대표 색상 (블루)
-                "connectInfo": [] # connectInfo 비움
-            }
-            
-            # [LOG] Payload content
-            print(f"[DEBUG] Payload to send:\n{body_text}")
-
-            headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
-            
-            try:
-                res = requests.post(JANDI_URL, json=payload, headers=headers)
-                print(f"[DEBUG] Jandi Response Code: {res.status_code}")
-                if res.status_code == 200:
-                    print("✅ 잔디 전송 성공!")
-                else:
-                    print(f"❌ 잔디 실패: {res.status_code} {res.text}")
-            except Exception as e:
-                print(f"❌ 잔디 에러: {e}")
-        else:
-            print("📭 [JANDI] 오늘은 두 팀 모두 일정이 없습니다.")
-    else:
-        print("⚠️ JANDI_WEBHOOK_URL 미설정")
+    
 
     print("[DEBUG] Closing browser...")
     browser.close()
