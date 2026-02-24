@@ -3,7 +3,7 @@ name: Daily Web Scraper
 on:
   schedule:
     # 🌟 한국 시간 오전 8시는 UTC로 전날 밤 23시입니다. (8 - 9 = -1)
-    - cron: '0 23 * * *'
+    - cron: '0 22 * * *'
   workflow_dispatch: # 수동으로 실행할 수 있는 버튼 활성화 (테스트용으로 필수!)
 
 jobs:
