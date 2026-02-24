@@ -12,8 +12,6 @@ def run(playwright):
     # 환경변수 로드
     USER_ID = os.environ.get("MY_SITE_ID", "")
     USER_PW = os.environ.get("MY_SITE_PW", "")
-    # Secrets에 넣었다면 아래 코드로 충분합니다. 
-    # 만약 Variables 탭에 두셨다면 os.environ.get("JANDI_WEBHOOK_URL")로 가져옵니다.
     JANDI_URL = os.environ.get("JANDI_WEBHOOK_URL", "")
 
     print("1. 로그인 및 일정 페이지 접속 중...")
@@ -43,16 +41,19 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 🌟 핵심: 대시보드 요약 로직을 브라우저에서 실행하고 결과(리스트)를 바로 가져옴
+    # 3. 블루팀 오늘 일정 및 HTML 추출
     # ------------------------------------------------------------------
-    print("3. 블루팀 오늘 일정 추출 중 (요약 박스 데이터 추출)...")
+    print("3. 데이터 추출 및 분석 중...")
     
     combined_js_logic = """
     (dateInfo) => {
         const div = document.querySelector('#customListMonthDiv');
-        if (!div) return { html: "", todayBlueEvents: [] };
+        // 💡 수정: 실패 시에도 반드시 'rawHtml' 키를 반환하도록 통일!
+        if (!div) return { rawHtml: "<p>일정을 찾을 수 없습니다.</p>", todayBlueEvents: [] };
+        
         const table = div.querySelector('table');
-        if (!table) return { html: div.innerHTML, todayBlueEvents: [] };
+        // 💡 수정: 여기도 'rawHtml'로 통일
+        if (!table) return { rawHtml: div.innerHTML, todayBlueEvents: [] };
 
         const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
         const trs = Array.from(table.rows);
@@ -64,8 +65,8 @@ def run(playwright):
             let c = 0;
             Array.from(tr.cells).forEach(cell => {
                 while (grid[r][c]) c++;
-                const rowspan = cell.rowSpan || 1;
-                const colspan = cell.colSpan || 1;
+                const rowspan = parseInt(cell.getAttribute('rowspan') || 1, 10);
+                const colspan = parseInt(cell.getAttribute('colspan') || 1, 10);
                 const innerHTML = cell.innerHTML;
                 const text = cell.innerText.trim();
                 const tagName = cell.tagName;
@@ -101,7 +102,10 @@ def run(playwright):
                 if (blueTeam.some(mem => name.includes(mem))) {
                     // 일정명 (중간 칸 - 제목 열)
                     // 보통 0:날짜, 1:시간, 2:일정명, 3:등록자 순서임
-                    const title = row[2] ? row[2].text : row[1].text;
+                    // 안전하게 3번째(index 2)를 가져오되, 없으면 2번째(index 1) 가져옴
+                    const titleObj = row[2] || row[1];
+                    const title = titleObj ? titleObj.text : "";
+                    
                     if (title && !todayBlueEvents.includes(title)) {
                         todayBlueEvents.push(title);
                     }
@@ -119,18 +123,28 @@ def run(playwright):
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
     
+    # 기본값 설정
     result = {"rawHtml": "", "todayBlueEvents": []}
+    
     try:
+        # iframe 내부 시도
         result = frame.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
-    except:
-        result = page.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
+    except Exception as e:
+        print(f"⚠️ iframe 내부 실행 실패, 메인 페이지에서 재시도: {e}")
+        try:
+            # 메인 페이지 시도
+            result = page.evaluate(combined_js_logic, {"month": now.month, "day": now.day})
+        except Exception as e2:
+            print(f"❌ 데이터 추출 완전 실패: {e2}")
+            result = {"rawHtml": "<p>데이터 추출 실패</p>", "todayBlueEvents": []}
 
-    extracted_html = result['rawHtml']
-    blue_events = result['todayBlueEvents']
+    # 💡 이제 여기서 KeyError가 발생하지 않습니다!
+    extracted_html = result.get('rawHtml', "")
+    blue_events = result.get('todayBlueEvents', [])
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
     # ------------------------------------------------------------------
-    # 4. index.html 생성 (기존 대시보드 코드 유지)
+    # 4. index.html 생성
     # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
@@ -255,8 +269,17 @@ def run(playwright):
                     if(currentIsToday) {{
                         r.style.backgroundColor = '#fff1f2';
                         Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
-                        const li = document.createElement('li'); li.innerText = r.cells[2].innerText.trim();
-                        list.appendChild(li); todayCount++;
+                        // 🌟 요약 데이터: 일정명만 깔끔하게 출력 (2번째 td, index 1 or 2)
+                        // 보통 table 구조가 [날짜, 시간, 일정명, 작성자] 순임.
+                        // querySelectorAll로 td만 가져오면 th(날짜)는 빠짐.
+                        // 따라서 tds[0]=시간, tds[1]=일정명, tds[2]=작성자
+                        const tds = r.querySelectorAll('td');
+                        if (tds.length >= 3) {{
+                            const title = tds[1].innerText.trim();
+                            const li = document.createElement('li');
+                            li.innerText = title; 
+                            list.appendChild(li); todayCount++;
+                        }}
                     }}
                 }});
                 if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
@@ -271,7 +294,7 @@ def run(playwright):
     print("✅ index.html 생성 완료!")
 
     # ------------------------------------------------------------------
-    # 5. 잔디 알림 전송 (JS에서 반환받은 blue_events 리스트 사용)
+    # 5. 잔디 알림 전송
     # ------------------------------------------------------------------
     if JANDI_URL:
         if blue_events:
@@ -280,12 +303,12 @@ def run(playwright):
             for item in blue_events:
                 msg += f"- {item}\n"
             
-            payload = {{
+            payload = {
                 "body": f"오늘의 블루팀 일정 ({now.month}/{now.day})",
                 "connectColor": "#00A1E9",
-                "connectInfo": [{{ "title": "일정 목록", "description": msg }}]
-            }}
-            headers = {{ "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }}
+                "connectInfo": [{ "title": "일정 목록", "description": msg }]
+            }
+            headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
             
             try:
                 res = requests.post(JANDI_URL, json=payload, headers=headers)
@@ -295,7 +318,7 @@ def run(playwright):
         else:
             print("📭 오늘은 블루팀 일정이 없습니다. (알림 생략)")
     else:
-        print("⚠️ JANDI_WEBHOOK_URL이 설정되지 않았습니다.")
+        print("⚠️ JANDI_WEBHOOK_URL 미설정")
 
     browser.close()
 
