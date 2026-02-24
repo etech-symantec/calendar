@@ -20,16 +20,15 @@ def run(playwright):
     page.fill('#userPw', USER_PW)
     page.press('#userPw', 'Enter')
     page.wait_for_load_state('networkidle')
-    time.sleep(3) # 로딩 대기 시간 소폭 증가
+    time.sleep(3)
 
     print("2. 상단 '일정' 메뉴 클릭 중...")
-    page.click('#topMenu300000000', timeout=20000) # 타임아웃 20초로 증가
+    page.click('#topMenu300000000', timeout=20000)
     page.wait_for_load_state('networkidle')
     time.sleep(3)
 
     print("3. 좌측 '공유일정 전체보기' 메뉴 클릭 중...")
     try:
-        # 20초 대기
         page.click('#301040000_all_anchor', timeout=20000)
     except:
         page.locator('text="공유일정 전체보기"').click(timeout=20000)
@@ -38,7 +37,6 @@ def run(playwright):
     print("4. 우측 본문에서 '일정목록' 탭 클릭 중...")
     frame = page.frame_locator('#_content')
     try:
-        # 에러가 났던 부분: 5000 -> 20000 (20초)으로 변경하여 충분히 기다리게 함
         frame.locator('text="일정목록"').click(timeout=20000)
     except:
         page.locator('text="일정목록"').click(timeout=20000)
@@ -47,31 +45,18 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5. [기존 유지] 대시보드용 HTML 추출
+    # 5. 데이터 추출 (HTML + 잔디 전송용 리스트 동시 추출)
     # ------------------------------------------------------------------
-    print("5. 대시보드용 HTML 추출 중...")
-    extracted_html = ""
-    try:
-        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
-    except Exception:
-        try:
-            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
-        except:
-            extracted_html = "<p>데이터를 불러오지 못했습니다.</p>"
-
-    # ------------------------------------------------------------------
-    # 6. [NEW] 오늘 날짜 블루팀 일정만 별도로 추출 (잔디 전송용)
-    # ------------------------------------------------------------------
-    print("6. 잔디 전송을 위한 오늘 일정 분석 중...")
+    print("5. 데이터 분석 및 추출 중...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
-    jandi_extraction_js = """
+    # 브라우저 내부에서 HTML과 필터링된 일정 리스트를 한 번에 가져오는 스크립트
+    extraction_js = """
     (dateInfo) => {
         const div = document.querySelector('#customListMonthDiv');
-        // rawHtml은 파이썬에서 에러 처리용 키로 사용
         if (!div) return { rawHtml: "", todayBlueEvents: [] };
         
         const table = div.querySelector('table');
@@ -81,7 +66,7 @@ def run(playwright):
         const trs = Array.from(table.querySelectorAll('tr'));
         const grid = [];
 
-        // 1. 테이블 평탄화
+        // 1. 테이블 평탄화 (rowspan 해제) -> 화면에 보이는 것과 똑같은 구조 생성
         trs.forEach((tr, r) => {
             if (!grid[r]) grid[r] = [];
             let c = 0;
@@ -105,26 +90,29 @@ def run(playwright):
         const events = [];
 
         grid.forEach(row => {
-            if (!row || row.length < 3) return;
+            // 구조: [0:날짜, 1:시간, 2:일정명, 3:등록자]
+            if (!row || row.length < 4) return;
 
             const dateTxt = row[0];
-            const nameTxt = row[row.length - 1];
-            // 일정명: 보통 index 2에 있으나 안전하게 확인 (없으면 index 1)
-            const titleTxt = row[2] || row[1];
+            const titleTxt = row[2]; // 🌟 핵심: 일정명은 3번째 칸 (Index 2)
+            const nameTxt = row[3];  // 등록자는 4번째 칸 (Index 3)
 
+            // 날짜 파싱
             const nums = dateTxt.replace(/\\s+/g, '').match(/\\d+/g);
             if (!nums || nums.length < 2) return;
-
+            
             let m = parseInt(nums[0]);
             let d = parseInt(nums[1]);
-            if (nums.length >= 3 && parseInt(nums[0]) > 2000) {
-                m = parseInt(nums[1]);
-                d = parseInt(nums[2]);
+            if(nums.length >= 3 && parseInt(nums[0]) > 2000) { 
+                m = parseInt(nums[1]); 
+                d = parseInt(nums[2]); 
             }
 
+            // 오늘 날짜인지 확인
             if (m === targetM && d === targetD) {
+                // 블루팀 멤버인지 확인
                 if (blueTeam.some(member => nameTxt.includes(member))) {
-                    if (!events.includes(titleTxt)) {
+                    if (titleTxt && !events.includes(titleTxt)) {
                         events.push(titleTxt);
                     }
                 }
@@ -138,21 +126,25 @@ def run(playwright):
     }
     """
 
-    # result = {"rawHtml": "", "todayBlueEvents": []}
-    today_blue_events = []
+    # JS 실행 결과 받기 (딕셔너리 형태)
+    extraction_result = {}
     try:
-        today_blue_events = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+        extraction_result = frame.evaluate(extraction_js, {"month": now.month, "day": now.day})
     except:
         try:
-            today_blue_events = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+            extraction_result = page.evaluate(extraction_js, {"month": now.month, "day": now.day})
         except Exception as e:
             print(f"⚠️ 데이터 분석 실패: {e}")
+            extraction_result = {"rawHtml": "<p>Error</p>", "todayBlueEvents": []}
 
-    # KeyError 방지를 위한 .get() 사용
-    # today_blue_events = result.get('todayBlueEvents', [])
+    # 🌟 핵심 수정: 딕셔너리에서 키를 이용해 각각의 데이터를 분리
+    extracted_html = extraction_result.get('rawHtml', "")
+    
+    # 여기! 진짜 리스트만 꺼내서 변수에 담습니다.
+    final_events_list = extraction_result.get('todayBlueEvents', [])
 
     # ------------------------------------------------------------------
-    # 7. index.html 생성 (대시보드)
+    # 6. index.html 생성 (대시보드)
     # ------------------------------------------------------------------
     html_template = f"""
     <!DOCTYPE html>
@@ -298,13 +290,14 @@ def run(playwright):
     print("✅ index.html 생성 완료!")
 
     # ------------------------------------------------------------------
-    # 8. 잔디 알림 전송 (Jandi)
+    # 7. 잔디 알림 전송 (Jandi)
     # ------------------------------------------------------------------
     if JANDI_URL:
-        if today_blue_events:
-            print(f"🚀 [JANDI] 블루팀 일정 {len(today_blue_events)}건 전송 시작")
+        # 🌟 수정됨: 이제 딕셔너리 키가 아니라, 진짜 일정 리스트(final_events_list)를 사용합니다!
+        if final_events_list:
+            print(f"🚀 [JANDI] 블루팀 일정 {len(final_events_list)}건 전송 시작")
             msg = f"🔥 **[블루팀] 오늘({now.month}/{now.day})의 일정입니다.**\n"
-            for item in today_blue_events:
+            for item in final_events_list:
                 msg += f"- {item}\n"
             
             payload = {
