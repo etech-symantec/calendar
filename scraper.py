@@ -322,7 +322,7 @@ def run(playwright):
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html_template)
     print(f"[DEBUG] list content: {list}")
-    print(f"[DEBUG] today-list content: {today-list}"
+    print(f"[DEBUG] today-list content: {today-list}")
     print("✅ index.html 생성 완료!")
 
     # ------------------------------------------------------------------
