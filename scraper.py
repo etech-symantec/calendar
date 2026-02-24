@@ -139,17 +139,17 @@ def run(playwright):
     """
 
     result = {"rawHtml": "", "todayBlueEvents": []}
+    today_blue_events = []
     try:
-        result = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+        today_blue_events = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
     except:
         try:
-            result = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
+            today_blue_events = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
         except Exception as e:
             print(f"⚠️ 데이터 분석 실패: {e}")
 
     # KeyError 방지를 위한 .get() 사용
-    today_blue_events = result.get('todayBlueEvents', [])
-    print("✅ today_blue_events: ", {today_blue_evenets})
+    # today_blue_events = result.get('todayBlueEvents', [])
 
     # ------------------------------------------------------------------
     # 7. index.html 생성 (대시보드)
