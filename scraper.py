@@ -68,7 +68,7 @@ def run(playwright):
     now = datetime.now(kst)
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
 
-    extraction_js = """
+    jandi_extraction_js = """
     (dateInfo) => {
         const div = document.querySelector('#customListMonthDiv');
         // rawHtml은 파이썬에서 에러 처리용 키로 사용
@@ -138,22 +138,18 @@ def run(playwright):
     }
     """
 
-    # JS 실행 결과 받기 (딕셔너리 형태)
-    extraction_result = {}
+    # result = {"rawHtml": "", "todayBlueEvents": []}
+    today_blue_events = []
     try:
-        extraction_result = frame.evaluate(extraction_js, {"month": now.month, "day": now.day})
+        today_blue_events = frame.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
     except:
         try:
-            extraction_result = page.evaluate(extraction_js, {"month": now.month, "day": now.day})
+            today_blue_events = page.evaluate(jandi_extraction_js, {"month": now.month, "day": now.day})
         except Exception as e:
             print(f"⚠️ 데이터 분석 실패: {e}")
-            extraction_result = {"rawHtml": "<p>Error</p>", "todayBlueEvents": []}
 
-    # 🌟 핵심 수정: 딕셔너리에서 키를 이용해 각각의 데이터를 분리
-    extracted_html = extraction_result.get('rawHtml', "")
-    
-    # 여기! 진짜 리스트만 꺼내서 변수에 담습니다.
-    final_events_list = extraction_result.get('todayBlueEvents', [])
+    # KeyError 방지를 위한 .get() 사용
+    # today_blue_events = result.get('todayBlueEvents', [])
 
     # ------------------------------------------------------------------
     # 7. index.html 생성 (대시보드)
@@ -305,10 +301,10 @@ def run(playwright):
     # 8. 잔디 알림 전송 (Jandi)
     # ------------------------------------------------------------------
     if JANDI_URL:
-        if final_events_list:
-            print(f"🚀 [JANDI] 블루팀 일정 {len(final_events_list)}건 전송 시작")
+        if today_blue_events:
+            print(f"🚀 [JANDI] 블루팀 일정 {len(today_blue_events)}건 전송 시작")
             msg = f"🔥 **[블루팀] 오늘({now.month}/{now.day})의 일정입니다.**\n"
-            for item in final_events_list:
+            for item in today_blue_events:
                 msg += f"- {item}\n"
             
             payload = {
