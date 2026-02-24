@@ -83,6 +83,7 @@ def run(playwright):
     
     kst_now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     today_blue_events = []
+    today_yellow_events = []
     
     try:
         # 1. Locate the table
