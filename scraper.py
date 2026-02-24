@@ -130,14 +130,10 @@ def run(playwright):
             let currentFilter = 'blue';
 
             document.addEventListener("DOMContentLoaded", function() {{
-                // 1. 로드 시 표 평탄화 (rowspan 해제)
                 flattenTableAndInit();
-                
-                // 2. 초기 필터 적용
                 applyFilter('blue'); 
             }});
 
-            // 🛠️ 초기화 함수: rowspan을 모두 깨부수고 독립적인 셀로 만듦
             function flattenTableAndInit() {{
                 const wrapper = document.getElementById('schedule-table-wrapper');
                 const table = wrapper.querySelector('table');
@@ -190,7 +186,6 @@ def run(playwright):
                 table.dataset.flattened = "true";
             }}
 
-            // 🔍 필터링 및 동적 병합
             function applyFilter(team) {{
                 currentFilter = team;
                 
@@ -199,7 +194,7 @@ def run(playwright):
 
                 const rows = document.querySelectorAll('.table-container tbody tr');
                 
-                // 1단계: 모든 행과 셀 리셋
+                // 1단계: 리셋
                 rows.forEach(row => {{
                     row.classList.remove('hidden-row');
                     row.style.backgroundColor = '';
@@ -245,7 +240,7 @@ def run(playwright):
                     }}
                 }});
 
-                // 3단계: 보이는 행 재병합
+                // 3단계: 재병합
                 if (visibleRows.length > 0) {{
                     let lastDateCell = visibleRows[0].children[0]; 
                     let lastDateText = lastDateCell ? lastDateCell.innerText.trim() : "";
@@ -271,7 +266,6 @@ def run(playwright):
                     }}
                 }}
 
-                // 4단계: 요약 업데이트 (포맷 수정됨!)
                 refreshTodaySummary(visibleRows);
             }}
 
@@ -315,16 +309,10 @@ def run(playwright):
                             c.style.fontWeight = 'bold';
                         }});
 
-                        // ✅ 요약 데이터 추출 및 포맷 수정
                         const tds = row.querySelectorAll('td');
                         if (tds.length >= 3) {{
-                            const time = tds[0].innerText.trim();
                             const title = tds[1].innerText.trim();
-                            const name = tds[2].innerText.trim();
-                            
                             const li = document.createElement('li');
-                            // 💡 기존: `[${name}] ${title} (${time})`
-                            // 🔥 수정: `title` 만 출력 (일정명)
                             li.innerText = title; 
                             ul.appendChild(li);
                             todayCount++;
