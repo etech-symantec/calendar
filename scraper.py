@@ -336,22 +336,37 @@ def run(playwright):
     # ------------------------------------------------------------------
     if JANDI_URL:
         print("[DEBUG] Jandi URL exists, proceeding with logic check...")
-        if today_blue_events:
-            print(f"🚀 [JANDI] Sending {len(today_blue_events)} Blue Team events...")
+
+        # 주말 체크 (5:토요일, 6:일요일)
+        if weekday_index >= 5:
+            print(f"📭 [JANDI] 오늘은 주말({weekday_str}요일)이라 알림을 보내지 않습니다.")
             
-            # 🔥 [수정] 모든 내용을 합쳐서 body 변수 하나에 담습니다.
-            body_text = f"📢 **{now.month}/{now.day} {weekday_str} 일정**\n"
-            for item in today_blue_events:
-                body_text += f"- {item}\n"
+        # 둘 중 하나라도 일정이 있으면 전송
+        elif today_blue_events or today_yellow_events:
+            print(f"🚀 [JANDI] Sending Combined Schedule...")
             
+            # 메시지 작성 시작
+            body_text = f"📢 **{now.month}/{now.day} ({weekday_str}) 일정**\n\n"
+            
+            # 🟦 블루팀 섹션 (일정이 있는 경우에만)
+            if today_blue_events:
+                body_text += "🟦 **[블루팀]**\n"
+                for item in today_blue_events:
+                    body_text += f"- {item}\n"
+                body_text += "\n" # 줄바꿈
+
+            # 🟨 옐로우팀 섹션 (일정이 있는 경우에만)
+            if today_yellow_events:
+                body_text += "🟨 **[옐로우팀]**\n"
+                for item in today_yellow_events:
+                    body_text += f"- {item}\n"
+
+            # Payload 구성
             payload = {
                 "body": body_text,
-                "connectColor": "#00A1E9",
-                "connectInfo": [] # [수정] connectInfo는 비워둡니다.
+                "connectColor": "#00A1E9", 
+                "connectInfo": [] 
             }
-            
-            # [LOG] Payload content
-            print(f"[DEBUG] Payload to send: {payload}")
 
             headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
             
