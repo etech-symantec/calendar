@@ -210,22 +210,25 @@ def run(playwright):
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
-        <title>일정 대시보드</title>
+        <title>공유 일정 대시보드</title>
         <style>
             body {{ font-family: 'Pretendard', sans-serif; padding: 15px; background-color: #f8f9fa; color: #333; font-size: 11px; }}
             /* 제목과 버튼을 감싸는 컨테이너 */
             .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
             h2 {{ color: #2c3e50; margin: 0; font-size: 18px; }}
+            .header-left {{ display: flex; align-items: baseline; gap: 10px; }}
+
             .nav-top {{ display: flex; gap: 8px; }}
             .nav-link {{ text-decoration: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; color: white; transition: 0.2s; }}
             .nav-link:hover {{ opacity: 0.9; }}
             .link-shared {{ background-color: #6366f1; }} /* Indigo */
             .link-resource {{ background-color: #10b981; }} /* Emerald */
             
-            .sync-time {{ color: #7f8c8d; font-size: 10px; margin-bottom: 15px; text-align: right; }}
+            .sync-time {{ color: #7f8c8d; font-size: 11px; font-weight: normal; }}
             .controls {{ display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; }}
+            /* 버튼 그룹 스타일 */
             .btn-group {{ display: flex; gap: 5px; }}
-            .btn {{ border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }}
+            .btn {{ border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }}
             
             .btn-blue {{ background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }}
             .btn-blue.active, .btn-blue:hover {{ background-color: #0ea5e9; color: white; }}
@@ -236,8 +239,10 @@ def run(playwright):
             
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
+            /* 선택된 팀의 오늘 일정 박스 스타일 */
             .summary-box {{ background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
-            .summary-box h3 {{ margin: 0 0 8px 0; color: #e11d48; font-size: 13px; }}
+            .summary-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #ffe4e6; padding-bottom: 8px; }}
+            .summary-box h3 {{ margin: 0; color: #e11d48; font-size: 13px; }}
             .summary-box ul {{ margin: 0; padding-left: 20px; line-height: 1.5; color: #333; }}
             .summary-box li {{ padding: 3px 0; border-bottom: 1px dashed #ffe4e6; }}
             .table-container {{ background: #fff; padding: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; max-height: 80vh; }}
@@ -257,25 +262,28 @@ def run(playwright):
     </head>
     <body>
         <div class="header-container">
-            <h2>📅 자원 일정 대시보드</h2>
+            <div class="header-left">
+                <h2>📅 자원 일정 대시보드</h2>
+                <span class="sync-time">Update: {kst_now_str}</span>
+            </div>
             <div class="nav-top">
                 <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
                 <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
             </div>
         </div>
-        <div class="controls">
-            <div class="btn-group">
-                <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
-                <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
-                <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
-                <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
-            </div>
-        </div>
+        
         <div class="summary-box">
-            <h3>🔥 선택된 팀의 오늘 일정</h3>
+            <div class="summary-header">
+                <h3>🔥 선택된 팀의 오늘 일정</h3>
+                <div class="btn-group">
+                    <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
+                    <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
+                    <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
+                    <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
+                </div>
+            </div>
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
-        <p class="sync-time">Update: {kst_now_str}</p>
         <div class="table-container" id="wrapper">{extracted_html}</div>
         <script>
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
