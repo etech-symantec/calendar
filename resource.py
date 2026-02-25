@@ -593,60 +593,7 @@ def run(playwright):
         f.write(html_template)
     print("✅ resource.html created!")
 
-    # ------------------------------------------------------------------
-    # 8. Jandi Notification (그린팀 추가됨)
-    # ------------------------------------------------------------------
-    if JANDI_URL:
-        print("[DEBUG] Jandi URL exists, proceeding...")
-        
-        if weekday_index >= 5:
-            print(f"📭 [JANDI] 오늘은 주말({weekday_str}요일)이라 알림을 보내지 않습니다.")
-        
-        elif today_blue_events or today_yellow_events or today_green_events:
-            print(f"🚀 [JANDI] Sending Combined Schedule...")
-            
-            body_text = f"📅 **오늘의 일정 ({now.month}/{now.day} {weekday_str})**\n\n"
-            
-            if today_blue_events:
-                body_text += "🔵 **[블루팀]**\n"
-                for item in today_blue_events:
-                    body_text += f"- {item}\n"
-                body_text += "\n" 
-
-            if today_yellow_events:
-                body_text += "🟡 **[옐로우팀]**\n"
-                for item in today_yellow_events:
-                    body_text += f"- {item}\n"
-                body_text += "\n"
-
-            if today_green_events: 
-                body_text += "🟢 **[그린팀]**\n"
-                for item in today_green_events:
-                    body_text += f"- {item}\n"
-
-            payload = {
-                "body": body_text,
-                "connectColor": "#00A1E9", 
-                "connectInfo": [] 
-            }
-            
-            print(f"[DEBUG] Payload to send:\n{body_text}")
-
-            headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
-            
-            try:
-                res = requests.post(JANDI_URL, json=payload, headers=headers)
-                print(f"[DEBUG] Jandi Response Code: {res.status_code}")
-                if res.status_code == 200:
-                    print("✅ 잔디 전송 성공!")
-                else:
-                    print(f"❌ 잔디 실패: {res.status_code} {res.text}")
-            except Exception as e:
-                print(f"❌ 잔디 에러: {e}")
-        else:
-            print("📭 [JANDI] 오늘은 세 팀 모두 일정이 없습니다.")
-    else:
-        print("⚠️ JANDI_WEBHOOK_URL 미설정")
+   
 
     print("[DEBUG] Closing browser...")
     browser.close()
