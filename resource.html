@@ -96,7 +96,7 @@
             <h3>🔥 선택된 팀의 오늘 일정</h3>
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
-        <p class="sync-time">Update: 2026-02-25 11:46:21</p>
+        <p class="sync-time">Update: 2026-02-25 11:53:13</p>
         
         <div class="table-container" id="wrapper">
             <table></table>
@@ -144,80 +144,54 @@
             function applyFilter(team) {
                 document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
                 document.querySelector(`.btn-${team}`).classList.add('active');
-                
                 const rows = Array.from(document.querySelectorAll('#wrapper tbody tr'));
-                
-                let visibleRows = [];
-
-                rows.forEach((r, idx) => {
-                    if(idx === 0) { 
-                        r.classList.remove('hidden-row');
-                        return;
-                    }
-
-                    const cells = r.querySelectorAll('td, th');
-                    if(cells.length === 0) return;
-                    const name = cells[cells.length-1].innerText.trim();
-                    
-                    let isVisible = false;
-                    if(team === 'all') isVisible = true;
-                    if(team === 'blue' && blueTeam.some(m => name.includes(m))) isVisible = true;
-                    if(team === 'yellow' && yellowTeam.some(m => name.includes(m))) isVisible = true;
-                    if(team === 'green' && greenTeam.some(m => name.includes(m))) isVisible = true;
-
-                    if(isVisible) {
-                        r.classList.remove('hidden-row');
-                        visibleRows.push(r);
-                    } else {
-                        r.classList.add('hidden-row');
-                    }
+                rows.forEach(r => {
+                    r.classList.remove('hidden-row');
+                    r.style.backgroundColor = '';
+                    const first = r.children[0];
+                    first.classList.remove('hidden-cell');
+                    first.setAttribute('rowspan', 1);
+                    Array.from(r.children).forEach(c => { c.style.color = ''; c.style.fontWeight = ''; });
                 });
-
-                updateSummary(visibleRows);
-            }
-
-            function updateSummary(visibleRows) {
-                const today = new Date();
-                const tM = today.getMonth() + 1;
-                const tD = today.getDate();
-                const list = document.getElementById('today-list'); 
-                list.innerHTML = '';
+                let visible = rows.filter((r, idx) => {
+                    if(idx === 0) return true; // 헤더
+                    const name = r.cells[r.cells.length-1].innerText.trim();
+                    if(team === 'all') return true;
+                    if(team === 'blue') return blueTeam.some(m => name.includes(m));
+                    if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
+                    if(team === 'green') return greenTeam.some(m => name.includes(m));
+                    return false;
+                });
+                rows.forEach(r => { if(!visible.includes(r)) r.classList.add('hidden-row'); });
                 
-                let count = 0;
-                let isTodayGroup = false;
-
-                visibleRows.forEach(r => {
-                    if(r.classList.contains('header-row') || r.rowIndex === 0) return;
-
-                    const cells = r.querySelectorAll('td, th');
-                    if(cells.length < 2) return;
-
-                    const dateText = cells[0].innerText;
-                    const nums = dateText.match(/\d+/g);
-                    
+                const today = new Date(), tM = today.getMonth()+1, tD = today.getDate();
+                const list = document.getElementById('today-list'); list.innerHTML = '';
+                let todayCount = 0;
+                visible.forEach((r, idx) => {
+                    if(idx === 0) return;
+                    const dateCell = r.cells[0];
+                    const nums = dateCell.innerText.match(/\d+/g);
+                    let isToday = false;
                     if(nums && nums.length >= 2) {
-                        let m = parseInt(nums[0]);
-                        let d = parseInt(nums[1]);
-                        if(nums.length >= 3 && parseInt(nums[0]) > 2000) { m = parseInt(nums[1]); d = parseInt(nums[2]); }
-                        isTodayGroup = (m === tM && d === tD);
+                        let m = parseInt(nums[0]), d = parseInt(nums[1]);
+                        if(nums.length >= 3 && parseInt(nums[0]) > 2000) { m=parseInt(nums[1]); d=parseInt(nums[2]); }
+                        isToday = (m === tM && d === tD);
                     }
-
-                    if(isTodayGroup) {
-                        r.style.backgroundColor = '#fff1f2'; 
-                        const time = cells[1] ? cells[1].innerText.trim() : "";
-                        const resource = cells[2] ? cells[2].innerText.trim() : "";
-                        const li = document.createElement('li');
-                        
-                        // 💡 요청된 포맷: [시간] [자원명]
-                        li.innerText = `[${time}] ${resource}`;
-                        list.appendChild(li);
-                        count++;
-                    } else {
-                        r.style.backgroundColor = ''; 
+                    
+                    if(isToday) {
+                        r.style.backgroundColor = '#fff1f2';
+                        Array.from(r.cells).forEach(c => { c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; });
+                        const tds = r.querySelectorAll('td');
+                        if (tds.length >= 3) {
+                            const title = tds[1].innerText.trim();
+                            const name = tds[tds.length-1].innerText.trim();
+                            const li = document.createElement('li');
+                            li.innerText = `[${time}] ${resource}`; 
+                            list.appendChild(li); todayCount++;
+                        }
                     }
                 });
-
-                if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
+                if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }
 
             function renderTimeline() {
@@ -279,6 +253,7 @@
                 const totalMinutes = (endHour - startHour) * 60;
                 
                 for (let h = startHour; h <= endHour; h++) {
+                    // Hour Line
                     const position = ((h - startHour) * 60 / totalMinutes) * 100;
                     const marker = document.createElement('div');
                     marker.className = 'timeline-hour-marker';
@@ -291,6 +266,7 @@
                     gridLine.style.left = `${position}%`;
                     timelineChart.appendChild(gridLine);
 
+                    // 💡 30분 점선 추가
                     if (h < endHour) {
                         const halfPos = ((h + 0.5 - startHour) * 60 / totalMinutes) * 100;
                         const halfLine = document.createElement('div');
@@ -333,8 +309,8 @@
                     bar.style.width = `${width}%`;
                     bar.style.top = `${top}px`;
                     
-                    // 💡 타임라인 바: [시간] [자원명] [예약명]
-                    bar.innerText = `[${event.timeStr}] [${event.resource}] ${event.title}`;
+                    // 💡 요청 형식: [시간] [자원명] [예약명]
+                    bar.innerText = `${event.resource} : ${event.title}`;
                     bar.title = `[${event.name}] ${event.title} (${event.timeStr})`; 
                     
                     timelineChart.appendChild(bar);
