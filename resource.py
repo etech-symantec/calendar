@@ -285,6 +285,10 @@ def run(playwright):
             .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
             .timeline-grid-line.half-hour {{ border-left: 1px dashed #e5e7eb; background-color: transparent; width: 0; }} /* 30분 점선 */
 
+            /* 🌟 현재 시간 표시선 스타일 */
+            .timeline-now-line {{ position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 20; pointer-events: none; }}
+            .timeline-now-label {{ position: absolute; top: -20px; font-size: 10px; font-weight: bold; color: white; background-color: #ef4444; padding: 2px 4px; border-radius: 3px; transform: translateX(-50%); z-index: 21; }}
+
             /* 기본 막대 (회색) */
             .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
             .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; }}
@@ -536,6 +540,29 @@ def run(playwright):
                         halfLine.style.left = `${{halfPos}}%`;
                         timelineChart.appendChild(halfLine);
                     }}
+                }}
+
+                // 🌟 현재 시간 표시 (09~18시 사이일 때만)
+                const now = new Date();
+                const curH = now.getHours();
+                const curM = now.getMinutes();
+                const curTotalMin = curH * 60 + curM;
+                const startTotalMin = startHour * 60;
+                const endTotalMin = endHour * 60;
+
+                if (curTotalMin >= startTotalMin && curTotalMin <= endTotalMin) {{
+                    const nowPos = ((curTotalMin - startTotalMin) / totalMinutes) * 100;
+                    const nowLine = document.createElement('div');
+                    nowLine.className = 'timeline-now-line';
+                    nowLine.style.left = `${{nowPos}}%`;
+                    
+                    const nowLabel = document.createElement('div');
+                    nowLabel.className = 'timeline-now-label';
+                    nowLabel.innerText = "Now";
+                    nowLabel.style.left = `${{nowPos}}%`;
+
+                    timelineChart.appendChild(nowLine);
+                    timelineChart.appendChild(nowLabel);
                 }}
 
                 todayEvents.sort((a, b) => a.start - b.start);
