@@ -213,17 +213,27 @@ def run(playwright):
         <title>일정 대시보드</title>
         <style>
             body {{ font-family: 'Pretendard', sans-serif; padding: 15px; background-color: #f8f9fa; color: #333; font-size: 11px; }}
-            h2 {{ color: #2c3e50; border-bottom: 2px solid #34495e; padding-bottom: 8px; margin: 0 0 10px 0; font-size: 16px; }}
+            /* 제목과 버튼을 감싸는 컨테이너 */
+            .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
+            h2 {{ color: #2c3e50; margin: 0; font-size: 18px; }}
+            .nav-top {{ display: flex; gap: 8px; }}
+            .nav-link {{ text-decoration: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; color: white; transition: 0.2s; }}
+            .nav-link:hover {{ opacity: 0.9; }}
+            .link-shared {{ background-color: #6366f1; }} /* Indigo */
+            .link-resource {{ background-color: #10b981; }} /* Emerald */
+            
             .sync-time {{ color: #7f8c8d; font-size: 10px; margin-bottom: 15px; text-align: right; }}
             .controls {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }}
             .btn-group {{ display: flex; gap: 5px; }}
             .btn {{ border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }}
+            
             .btn-blue {{ background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }}
             .btn-blue.active, .btn-blue:hover {{ background-color: #0ea5e9; color: white; }}
             .btn-yellow {{ background-color: #fef9c3; color: #854d0e; border: 1px solid #fde047; }}
             .btn-yellow.active, .btn-yellow:hover {{ background-color: #eab308; color: white; }}
             .btn-green {{ background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }}
             .btn-green.active, .btn-green:hover {{ background-color: #22c55e; color: white; }}
+            
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
             .summary-box {{ background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
@@ -236,11 +246,24 @@ def run(playwright):
             th {{ background-color: #e5e7eb !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; color: #374151; }}
             .hidden-row {{ display: none !important; }}
             .hidden-cell {{ display: none !important; }}
+            
+            /* 상단 이동 버튼 스타일 */
+            .nav-top {{ margin-bottom: 15px; display: flex; gap: 8px; }}
+            .nav-link {{ text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; color: white; transition: 0.2s; }}
+            .nav-link:hover {{ opacity: 0.9; }}
+            .link-shared {{ background-color: #6366f1; }} /* Indigo */
+            .link-resource {{ background-color: #10b981; }} /* Emerald */
         </style>
     </head>
     <body>
+        <div class="header-container">
+            <h2>📅 자원 일정 대시보드</h2>
+            <div class="nav-top">
+                <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
+                <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
+            </div>
+        </div>
         <div class="controls">
-            <h2>📅 일정 대시보드</h2>
             <div class="btn-group">
                 <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
                 <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
