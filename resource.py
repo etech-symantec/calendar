@@ -2,6 +2,7 @@ import os
 import time
 import requests
 import re
+import json
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta, timezone
 
@@ -51,8 +52,7 @@ def run(playwright):
     try:
         # 1. 좌측 메뉴에서 '자원관리' 클릭 (폴더 열기)
         print("   - Clicking '자원관리'...")
-        # 좌측 메뉴 영역(nav 등) 내의 텍스트를 찾는 것이 정확하나, 
-        # 구조상 visible한 텍스트를 순차적으로 클릭합니다.
+
         page.locator('text="자원관리"').click(timeout=10000)
         time.sleep(1) # 메뉴가 펼쳐지는 시간 대기
 
@@ -120,6 +120,7 @@ def run(playwright):
     today_blue_events = []
     today_yellow_events = []
     today_green_events = []
+    final_grid_data = []
     
     try:
         # 1. Locate the table
@@ -137,6 +138,10 @@ def run(playwright):
                 return rows.map(tr => {
                     return Array.from(tr.children).map(cell => ({
                         text: cell.innerText.trim(),
+                        html: cell.innerHTML,
+                        tagName: cell.tagName,
+                        className: cell.className,
+                        style: cell.getAttribute('style') || '',
                         rowspan: parseInt(cell.getAttribute('rowspan') || 1, 10),
                         colspan: parseInt(cell.getAttribute('colspan') || 1, 10)
                     }));
@@ -154,7 +159,18 @@ def run(playwright):
                     while c_idx < len(grid[r_idx]) and grid[r_idx][c_idx] is not None:
                         c_idx += 1
                     
-                    text = cell['text']
+                    # 이미지 태그 제거
+                    cell_html = cell['html']
+                    cell_html = cell_html.replace('<img src="/schedule/resources/Images/ico/resources_ico.png">', '')
+
+                    cell_obj = {
+                        'text': cell['text'],
+                        'html': cell_html,
+                        'tag': cell['tagName'],
+                        'cls': cell['className'],
+                        'style': cell['style']
+                    }
+                    
                     rowspan = cell['rowspan']
                     colspan = cell['colspan']
                     
@@ -167,8 +183,10 @@ def run(playwright):
                             target_col = c_idx + cc
                             while len(grid[target_row]) <= target_col:
                                 grid[target_row].append(None)
-                            grid[target_row][target_col] = text
+                            grid[target_row][target_col] = cell_obj
                     c_idx += colspan
+
+            final_grid_data = grid
 
             # 4. Filter Logic
             blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
@@ -180,9 +198,9 @@ def run(playwright):
             for row in grid:
                 if len(row) < 3: continue
 
-                date_txt = row[0]
-                name_txt = row[-1]
-                title_txt = row[2] if len(row) > 2 else row[1]
+                date_txt = row[0]['text']
+                name_txt = row[-1]['text']
+                title_txt = row[2]['text'] if len(row) > 2 else row[1]['text']
 
                 clean_date = re.sub(r'\s+', '', date_txt)
                 nums = re.findall(r'\d+', clean_date)
@@ -227,6 +245,8 @@ def run(playwright):
     # ------------------------------------------------------------------
     # 7. Create resource.html
     # ------------------------------------------------------------------
+    json_grid_data = json.dumps(final_grid_data, ensure_ascii=False)
+    
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -275,16 +295,31 @@ def run(playwright):
             .nav-link:hover {{ opacity: 0.9; }}
             .link-shared {{ background-color: #6366f1; }} /* Indigo */
             .link-resource {{ background-color: #10b981; }} /* Emerald */
+
+            /* 타임라인 스타일 */
+            #timeline-container {{ background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }}
+            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; }}
+            .timeline-hour-marker {{ position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }}
+            .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
+            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #e0f2fe; border: 1px solid #bae6fd; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #0369a1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }}
+            .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; background-color: #f0f9ff; }}
         </style>
     </head>
     <body>
         <div class="header-container">
-            <h2>📅 자원 일정 대시보드</h2>
+            <h2>📅 자원일정 대시보드</h2>
             <div class="nav-top">
                 <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
                 <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
             </div>
         </div>
+        
+        <div id="timeline-container">
+            <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
+            <div id="timeline-chart">
+                </div>
+        </div>
+        
         <div class="controls">
             <div class="btn-group">
                 <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
@@ -298,12 +333,23 @@ def run(playwright):
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
         <p class="sync-time">Update: {kst_now_str}</p>
+        <div class="table-container" id="wrapper">
+            <table></table>
+        </div>
         <div class="table-container" id="wrapper">{extracted_html}</div>
         <script>
+            const gridData = {json_grid_data}; 
+            
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
             document.addEventListener("DOMContentLoaded", function() {{
+                renderTable();
+                applyFilter('blue');
+                renderTimeline(); // 타임라인 렌더링 함수 호출
+            }});
+
+            function renderTable() {{
                 const table = document.querySelector('#wrapper table');
                 if(!table) return;
                 const trs = Array.from(table.rows);
@@ -345,7 +391,8 @@ def run(playwright):
                     first.setAttribute('rowspan', 1);
                     Array.from(r.children).forEach(c => {{ c.style.color = ''; c.style.fontWeight = ''; }});
                 }});
-                let visible = rows.filter(r => {{
+                let visible = rows.filter((r, idx) => {{
+                    if(idx === 0) return true; // 헤더
                     const name = r.cells[r.cells.length-1].innerText.trim();
                     if(team === 'all') return true;
                     if(team === 'blue') return blueTeam.some(m => name.includes(m));
@@ -388,6 +435,118 @@ def run(playwright):
                     }}
                 }});
                 if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
+            }}
+
+            // --- 타임라인 렌더링 로직 ---
+            function renderTimeline() {{
+                const timelineChart = document.getElementById('timeline-chart');
+                const today = new Date();
+                const tM = today.getMonth() + 1;
+                const tD = today.getDate();
+                let todayEvents = [];
+
+                // 1. 오늘 일정 추출 및 파싱
+                if (gridData) {{
+                    gridData.forEach((row, idx) => {{
+                        if (idx === 0) return; // 헤더 제외
+                        const dateText = row[0].text;
+                        const nums = dateText.match(/\\d+/g);
+                        let isToday = false;
+                        if (nums && nums.length >= 2) {{
+                            let m = parseInt(nums[0]), d = parseInt(nums[1]);
+                            if (nums.length >= 3 && parseInt(nums[0]) > 2000) {{ m = parseInt(nums[1]); d = parseInt(nums[2]); }}
+                            isToday = (m === tM && d === tD);
+                        }}
+
+                        if (isToday) {{
+                            // 시간 파싱 (예: 09:55 - 10:55 또는 10:00)
+                            let timeText = row[2] ? row[2].text : (row[1] ? row[1].text : ""); // 보통 3번째 셀이 시간/제목
+                            let startTimeStr = "09:00", endTimeStr = "18:00";
+                            
+                            // 시간 추출 정규식 (HH:MM - HH:MM 형태 또는 HH:MM 형태)
+                            const timeMatch = timeText.match(/(\\d{{2}}:\\d{{2}})(?:\\s*-\\s*(\\d{{2}}:\\d{{2}}))?/);
+                            if (timeMatch) {{
+                                startTimeStr = timeMatch[1];
+                                if (timeMatch[2]) {{
+                                    endTimeStr = timeMatch[2];
+                                }} else {{
+                                    // 종료 시간이 없으면 기본 1시간으로 가정
+                                    let [sh, sm] = startTimeStr.split(':').map(Number);
+                                    let endH = sh + 1;
+                                    endTimeStr = `${{endH.toString().padStart(2, '0')}}:${{sm.toString().padStart(2, '0')}}`;
+                                }}
+                            }}
+
+                            todayEvents.push({{
+                                start: timeStringToMinutes(startTimeStr),
+                                end: timeStringToMinutes(endTimeStr),
+                                text: timeText,
+                                name: row[row.length - 1].text
+                            }});
+                        }}
+                    }});
+                }}
+
+                // 2. 타임라인 그리드 그리기 (09:00 ~ 18:00)
+                const startHour = 9, endHour = 18;
+                const totalMinutes = (endHour - startHour) * 60;
+                
+                for (let h = startHour; h <= endHour; h++) {{
+                    const position = ((h - startHour) * 60 / totalMinutes) * 100;
+                    
+                    // 시간 마커
+                    const marker = document.createElement('div');
+                    marker.className = 'timeline-hour-marker';
+                    marker.style.left = `${{position}}%`;
+                    marker.innerText = `${{h.toString().padStart(2, '0')}}:00`;
+                    timelineChart.appendChild(marker);
+
+                    // 그리드 선
+                    const gridLine = document.createElement('div');
+                    gridLine.className = 'timeline-grid-line';
+                    gridLine.style.left = `${{position}}%`;
+                    timelineChart.appendChild(gridLine);
+                }}
+
+                // 3. 일정 배치 (레이아웃 알고리즘)
+                todayEvents.sort((a, b) => a.start - b.start); // 시작 시간 정렬
+                const levels = []; // 각 레벨의 마지막 종료 시간 저장
+
+                todayEvents.forEach(event => {{
+                    // 배치할 레벨 찾기
+                    let levelIndex = levels.findIndex(end => event.start >= end);
+                    if (levelIndex === -1) {{
+                        levelIndex = levels.length; // 새 레벨 추가
+                        levels.push(event.end);
+                    }} else {{
+                        levels[levelIndex] = event.end; // 해당 레벨 종료 시간 업데이트
+                    }}
+
+                    // 막대 생성 및 스타일링
+                    const startMinutesFromBase = Math.max(0, event.start - (startHour * 60));
+                    const duration = Math.max(10, event.end - event.start); // 최소 10분
+                    const left = (startMinutesFromBase / totalMinutes) * 100;
+                    const width = (duration / totalMinutes) * 100;
+                    const top = levelIndex * 30; // 레벨당 30px 높이
+
+                    const bar = document.createElement('div');
+                    bar.className = 'timeline-event-bar';
+                    bar.style.left = `${{left}}%`;
+                    bar.style.width = `${{width}}%`;
+                    bar.style.top = `${{top}}px`;
+                    bar.innerText = `[${{event.name}}] ${{event.text}}`;
+                    bar.title = `[${{event.name}}] ${{event.text}}`; // 툴팁
+                    
+                    timelineChart.appendChild(bar);
+                }});
+
+                // 차트 높이 조정
+                timelineChart.style.height = `${{(levels.length || 1) * 30 + 20}}px`;
+            }}
+
+            function timeStringToMinutes(timeStr) {{
+                const [h, m] = timeStr.split(':').map(Number);
+                return h * 60 + m;
             }}
         </script>
     </body>
