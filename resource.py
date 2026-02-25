@@ -329,14 +329,32 @@ def run(playwright):
             .timeline-event-bar.rest {{ border-style: dashed !important; border-width: 1px !important; background-color: #d8e8e8; color: #334155; }}
             
             /* 팀별 색상 */
-            .timeline-event-bar.blue {{ background-color: #e0f2fe !important; border-color: #bae6fd !important; color: #0369a1 !important; }}
-            .timeline-event-bar.blue:hover {{ background-color: #f0f9ff; }}
+            .timeline-event-bar.blue {{ 
+                background-color: #e0f2fe !important; 
+                border-color: #bae6fd !important; 
+                color: #0369a1 !important; 
+                font-size: 12px !important; 
+                font-weight: bold !important; 
+            }}
+            .timeline-event-bar.blue:hover {{ background-color: #f0f9ff !important; }}
             
-            .timeline-event-bar.yellow {{ background-color: #fef9c3 !important; border-color: #fde047 !important; color: #854d0e !important; }}
-            .timeline-event-bar.yellow:hover {{ background-color: #fefce8; }}
+            .timeline-event-bar.yellow {{ 
+                background-color: #fef9c3 !important; 
+                border-color: #fde047 !important; 
+                color: #854d0e !important; 
+                font-size: 12px !important; 
+                font-weight: bold !important; 
+            }}
+            .timeline-event-bar.yellow:hover {{ background-color: #fefce8 !important; }}
             
-            .timeline-event-bar.green {{ background-color: #dcfce7 !important; border-color: #bbf7d0 !important; color: #166534 !important; }}
-            .timeline-event-bar.green:hover {{ background-color: #f0fdf4; }}
+            .timeline-event-bar.green {{ 
+                background-color: #dcfce7 !important; 
+                border-color: #bbf7d0 !important; 
+                color: #166534 !important; 
+                font-size: 12px !important; 
+                font-weight: bold !important; 
+            }}
+            .timeline-event-bar.green:hover {{ background-color: #f0fdf4 !important; }}
         </style>
     </head>
     <body>
@@ -535,14 +553,15 @@ def run(playwright):
                             
                             let bookerName = row[row.length - 1].text;
 
-                            todayEvents.push({{
-                                start: timeStringToMinutes(startTimeStr),
-                                end: timeStringToMinutes(endTimeStr),
-                                timeStr: timeText,
-                                resource: resourceName,
-                                title: eventTitle,
-                                name: bookerName
-                            }});
+                            // 🌟 18시 이후 일정 잘라내기 (Clamp)
+                            let startMin = timeStringToMinutes(startTimeStr);
+                            let endMin = timeStringToMinutes(endTimeStr);
+                            const limitMin = 18 * 60; // 18시 = 1080분
+
+                            if (startMin < limitMin) {{
+                                if (endMin > limitMin) endMin = limitMin; // 18시 넘으면 18시로 고정
+                                todayEvents.push({{ start: startMin, end: endMin, timeStr: timeText, resource: resourceName, title: eventTitle, name: bookerName }});
+                            }}
                         }}
                     }});
                 }}
