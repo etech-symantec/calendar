@@ -538,7 +538,7 @@ def run(playwright):
                     bar.style.top = `${{top}}px`;
                     
                     // 💡 요청 형식: [시간] [자원명] [예약명]
-                    bar.innerText = `[${{event.timeStr}}] [${{event.resource}}] ${{event.title}}`;
+                    bar.innerText = `${{event.resource}} : ${{event.title}}`;
                     bar.title = `[${{event.name}}] ${{event.title}} (${{event.timeStr}})`; 
                     
                     timelineChart.appendChild(bar);
