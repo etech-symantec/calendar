@@ -252,12 +252,6 @@ def run(playwright):
             .hidden-row {{ display: none !important; }}
             .hidden-cell {{ display: none !important; }}
             
-            /* 상단 이동 버튼 스타일 */
-            .nav-top {{ margin-bottom: 15px; display: flex; gap: 8px; }}
-            .nav-link {{ text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; color: white; transition: 0.2s; }}
-            .nav-link:hover {{ opacity: 0.9; }}
-            .link-shared {{ background-color: #6366f1; }} /* Indigo */
-            .link-resource {{ background-color: #10b981; }} /* Emerald */
         </style>
     </head>
     <body>
