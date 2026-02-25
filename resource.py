@@ -104,7 +104,7 @@ def run(playwright):
     # ------------------------------------------------------------------
     # 6. Python-side Calculation for BOTH Teams
     # ------------------------------------------------------------------
-    print("6. Calculating Today's Schedule for Blue & Yellow Teams...")
+    print("6. Calculating Today's Schedule for Blue & Yellow & Green Teams...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
@@ -350,6 +350,7 @@ def run(playwright):
                     if(team === 'all') return true;
                     if(team === 'blue') return blueTeam.some(m => name.includes(m));
                     if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
+                    if(team === 'green') return greenTeam.some(m => name.includes(m));
                     return false;
                 }});
                 rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
