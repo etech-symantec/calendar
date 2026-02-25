@@ -286,8 +286,19 @@ def run(playwright):
             #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; }}
             .timeline-hour-marker {{ position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }}
             .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
-            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #e0f2fe; border: 1px solid #bae6fd; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #0369a1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
-            .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; background-color: #f0f9ff; }}
+            /* 기본 막대 (회색) */
+            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
+            .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; }}
+            
+            /* 팀별 색상 */
+            .timeline-event-bar.blue {{ background-color: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; }}
+            .timeline-event-bar.blue:hover {{ background-color: #f0f9ff; }}
+            
+            .timeline-event-bar.yellow {{ background-color: #fef9c3; border: 1px solid #fde047; color: #854d0e; }}
+            .timeline-event-bar.yellow:hover {{ background-color: #fefce8; }}
+            
+            .timeline-event-bar.green {{ background-color: #dcfce7; border: 1px solid #bbf7d0; color: #166534; }}
+            .timeline-event-bar.green:hover {{ background-color: #f0fdf4; }}
         </style>
     </head>
     <body>
@@ -535,6 +546,15 @@ def run(playwright):
 
                     const bar = document.createElement('div');
                     bar.className = 'timeline-event-bar';
+                    
+                    // 🌟 팀별 색상 적용 (JS)
+                    if (blueTeam.some(m => event.name.includes(m))) {{
+                        bar.classList.add('blue');
+                    }} else if (yellowTeam.some(m => event.name.includes(m))) {{
+                        bar.classList.add('yellow');
+                    }} else if (greenTeam.some(m => event.name.includes(m))) {{
+                        bar.classList.add('green');
+                    }}
                     bar.style.left = `${{left}}%`;
                     bar.style.width = `${{width}}%`;
                     bar.style.top = `${{top}}px`;
