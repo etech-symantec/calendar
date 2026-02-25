@@ -168,12 +168,46 @@ def run(playwright):
             
             print(f"[DEBUG] Processed {len(grid)} rows in Python.")
             
-            for row in grid:
-                if len(row) < 3: continue
+            for r_idx, row in enumerate(grid):
+                # 첫 번째 줄은 헤더로 처리 (조건: 인덱스 0)
+                is_header = (r_idx == 0)
+                
+                if len(row) < 3 and not is_header: continue
 
-                date_txt = row[0]
-                name_txt = row[-1]
-                title_txt = row[2] if len(row) > 2 else row[1]
+                # 데이터 추출
+                date_txt = row[0]['text'] if row[0] else ""
+                name_txt = row[-1]['text'] if row[-1] else ""
+                # 일정명: 보통 3번째(index 2) 또는 2번째(index 1)
+                title_txt = ""
+                if len(row) > 2: title_txt = row[2]['text']
+                elif len(row) > 1: title_txt = row[1]['text']
+
+                # HTML Row 생성
+                # 헤더면 class="header-row", 아니면 data-name 속성 추가
+                tr_attrs = 'class="header-row"' if is_header else f'data-name="{name_txt}"'
+                
+                tr_html = f'<tr {tr_attrs}>'
+                for cell in row:
+                    if cell:
+                        tag = 'th' if is_header else cell['tagName'] # 헤더는 th 강제
+                        # 헤더 스타일 보정 (배경색 등)
+                        style = cell['style']
+                        if is_header: style += "; background-color: #e5e7eb; font-weight: bold;"
+                        
+                        tr_html += f'<{tag} class="{cell["className"]}" style="{style}">{cell["html"]}</{tag}>'
+                    else:
+                        tr_html += '<td></td>'
+                tr_html += '</tr>'
+                
+                if is_header:
+                    table_head_html += tr_html
+                else:
+                    table_body_html += tr_html
+
+                # -----------------------
+                # 잔디 전송용 데이터 추출 (헤더 제외)
+                # -----------------------
+                if is_header: continue
 
                 clean_date = re.sub(r'\s+', '', date_txt)
                 nums = re.findall(r'\d+', clean_date)
