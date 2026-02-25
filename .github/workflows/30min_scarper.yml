@@ -2,8 +2,8 @@ name: Every 30 min Web Scraper
 
 on:
   schedule:
-    # 🌟 매 30분
-    - cron: '*/30 * * * *'
+    - cron: '0 * * * *'
+    - cron: '30 * * * *'
   workflow_dispatch: # 수동으로 실행할 수 있는 버튼 활성화 (테스트용으로 필수!)
 
 jobs:
