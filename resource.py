@@ -245,8 +245,9 @@ def run(playwright):
             .link-shared {{ background-color: #6366f1; }} 
             .link-resource {{ background-color: #10b981; }} 
 
-            .sync-time {{ color: #7f8c8d; font-size: 11px; font-weight: normal; }} /* 업데이트 시간 스타일 */
+            .sync-time {{ color: #7f8c8d; font-size: 11px; font-weight: normal; }}
             .controls {{ display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; }}
+            /* 버튼 그룹 스타일 */
             .btn-group {{ display: flex; gap: 5px; }}
             .btn {{ border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }}
             
@@ -262,10 +263,12 @@ def run(playwright):
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
             
+            /* 선택된 팀의 오늘 일정 박스 스타일 */
             .summary-box {{ background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
-            .summary-box h3 {{ margin: 0 0 8px 0; color: #e11d48; font-size: 13px; }}
+            .summary-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px dashed #ffe4e6; padding-bottom: 8px; }}
+            .summary-box h3 {{ margin: 0; color: #e11d48; font-size: 13px; }}
             .summary-box ul {{ margin: 0; padding-left: 20px; line-height: 1.5; color: #333; }}
-            .summary-box li {{ padding: 3px 0; }}
+            .summary-box li {{ padding: 3px 0; border-bottom: 1px dashed #ffe4e6; }}
             .table-container {{ background: #fff; padding: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; max-height: 80vh; }}
             table {{ border-collapse: collapse !important; width: 100% !important; }}
             table, th, td {{ border: 1px solid #d1d5db !important; padding: 6px 8px !important; text-align: center; white-space: nowrap; font-size: 11px; }}
