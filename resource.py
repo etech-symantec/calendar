@@ -75,12 +75,37 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5 & 6. 데이터 추출 및 분석
+    # 5. Extract HTML for Dashboard
     # ------------------------------------------------------------------
-    print("5. Extracting & Processing Data...")
+    print("5. Extracting Dashboard HTML...")
+    extracted_html = ""
+    try:
+        # 테이블 ID가 동일하다고 가정 (#customListMonthDiv)
+        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
+    except Exception as e:
+        print(f"[DEBUG] Extraction error: {e}")
+        try:
+            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
+        except:
+            extracted_html = "<p>Failed to load data.</p>"
+
+    # ------------------------------------------------------------------
+    # 불필요한 이미지 태그 삭제
+    # ------------------------------------------------------------------
+    if extracted_html:
+        extracted_html = extracted_html.replace('<img src="/schedule/resources/Images/ico/resources_ico.png">', '')
+
+    print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
+
+    # ------------------------------------------------------------------
+    # 6. Python-side Calculation for BOTH Teams
+    # ------------------------------------------------------------------
+    print("6. Calculating Today's Schedule for Blue & Yellow & Green Teams...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
+    
+    # 요일 구하기 (0:월, ... 6:일)
     weekday_index = now.weekday()
     weekday_list = ["월", "화", "수", "목", "금", "토", "일"]
     weekday_str = weekday_list[weekday_index]
@@ -226,7 +251,7 @@ def run(playwright):
             .nav-link {{ text-decoration: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; color: white; transition: 0.2s; }}
             .nav-link:hover {{ opacity: 0.9; }}
             .link-shared {{ background-color: #6366f1; }} 
-            .link-resource {{ background-color: #10b981; }}
+            .link-resource {{ background-color: #10b981; }} 
 
             .sync-time {{ color: #7f8c8d; font-size: 10px; margin-bottom: 15px; text-align: right; }}
             .controls {{ display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; }}
@@ -256,7 +281,7 @@ def run(playwright):
             .hidden-row {{ display: none !important; }}
             .hidden-cell {{ display: none !important; }}
 
-            /* 🌟 타임라인 스타일 추가 */
+            /* 타임라인 스타일 */
             #timeline-container {{ background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }}
             #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; }}
             .timeline-hour-marker {{ position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }}
@@ -309,7 +334,7 @@ def run(playwright):
             document.addEventListener("DOMContentLoaded", function() {{
                 renderTable();
                 applyFilter('blue');
-                renderTimeline(); // 타임라인 실행
+                renderTimeline(); 
             }});
 
             function renderTable() {{
@@ -414,7 +439,7 @@ def run(playwright):
                 if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }}
 
-            // 🌟 타임라인 렌더링 함수
+            // 🌟 수정된 타임라인 렌더링 (시간열 우선 분석)
             function renderTimeline() {{
                 const timelineChart = document.getElementById('timeline-chart');
                 const today = new Date();
@@ -435,27 +460,37 @@ def run(playwright):
                         }}
 
                         if (isToday) {{
-                            // 시간 파싱 (HH:MM - HH:MM 형태)
-                            let timeText = row[2] ? row[2].text : (row[1] ? row[1].text : ""); 
+                            // 💡 시간은 항상 2번째 칸(Index 1)에 있습니다.
+                            let timeText = row[1] ? row[1].text : ""; 
                             let startTimeStr = "09:00", endTimeStr = "18:00";
                             
-                            const timeMatch = timeText.match(/(\\d{{2}}:\\d{{2}})(?:\\s*-\\s*(\\d{{2}}:\\d{{2}}))?/);
-                            if (timeMatch) {{
-                                startTimeStr = timeMatch[1];
-                                if (timeMatch[2]) {{
-                                    endTimeStr = timeMatch[2];
-                                }} else {{
-                                    let [sh, sm] = startTimeStr.split(':').map(Number);
-                                    let endH = sh + 1;
-                                    endTimeStr = `${{endH.toString().padStart(2, '0')}}:${{sm.toString().padStart(2, '0')}}`;
+                            // 'AllDay' 체크
+                            if (timeText.toUpperCase().includes("ALL")) {{
+                                // 전일 일정은 기본값 유지
+                            }} else {{
+                                // 시간 추출 정규식
+                                const timeMatch = timeText.match(/(\\d{{2}}:\\d{{2}})(?:\\s*-\\s*(\\d{{2}}:\\d{{2}}))?/);
+                                if (timeMatch) {{
+                                    startTimeStr = timeMatch[1];
+                                    if (timeMatch[2]) {{
+                                        endTimeStr = timeMatch[2];
+                                    }} else {{
+                                        let [sh, sm] = startTimeStr.split(':').map(Number);
+                                        let endH = sh + 1;
+                                        endTimeStr = `${{endH.toString().padStart(2, '0')}}:${{sm.toString().padStart(2, '0')}}`;
+                                    }}
                                 }}
                             }}
+
+                            // 제목(예약명)은 4번째(Index 3) 또는 3번째(Index 2)
+                            let eventTitle = row[3] ? row[3].text : (row[2] ? row[2].text : "");
+                            let bookerName = row[row.length - 1].text;
 
                             todayEvents.push({{
                                 start: timeStringToMinutes(startTimeStr),
                                 end: timeStringToMinutes(endTimeStr),
-                                text: timeText,
-                                name: row[row.length - 1].text
+                                text: eventTitle,
+                                name: bookerName
                             }});
                         }}
                     }});
@@ -503,8 +538,9 @@ def run(playwright):
                     bar.style.left = `${{left}}%`;
                     bar.style.width = `${{width}}%`;
                     bar.style.top = `${{top}}px`;
+                    // 예약명(제목)을 막대에 표시
                     bar.innerText = `[${{event.name}}] ${{event.text}}`;
-                    bar.title = `[${{event.name}}] ${{event.text}}`; 
+                    bar.title = `[${{event.name}}] ${{event.text}} (${{event.start}}~${{event.end}})`; 
                     
                     timelineChart.appendChild(bar);
                 }});
@@ -525,60 +561,7 @@ def run(playwright):
         f.write(html_template)
     print("✅ resource.html created!")
 
-    # ------------------------------------------------------------------
-    # 8. Jandi Notification (그린팀 추가됨)
-    # ------------------------------------------------------------------
-    if JANDI_URL:
-        print("[DEBUG] Jandi URL exists, proceeding...")
-        
-        if weekday_index >= 5:
-            print(f"📭 [JANDI] 오늘은 주말({weekday_str}요일)이라 알림을 보내지 않습니다.")
-        
-        elif today_blue_events or today_yellow_events or today_green_events:
-            print(f"🚀 [JANDI] Sending Combined Schedule...")
-            
-            body_text = f"📅 **오늘의 일정 ({now.month}/{now.day} {weekday_str})**\n\n"
-            
-            if today_blue_events:
-                body_text += "🔵 **[블루팀]**\n"
-                for item in today_blue_events:
-                    body_text += f"- {item}\n"
-                body_text += "\n" 
-
-            if today_yellow_events:
-                body_text += "🟡 **[옐로우팀]**\n"
-                for item in today_yellow_events:
-                    body_text += f"- {item}\n"
-                body_text += "\n"
-
-            if today_green_events: 
-                body_text += "🟢 **[그린팀]**\n"
-                for item in today_green_events:
-                    body_text += f"- {item}\n"
-
-            payload = {
-                "body": body_text,
-                "connectColor": "#00A1E9", 
-                "connectInfo": [] 
-            }
-            
-            print(f"[DEBUG] Payload to send:\n{body_text}")
-
-            headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
-            
-            try:
-                res = requests.post(JANDI_URL, json=payload, headers=headers)
-                print(f"[DEBUG] Jandi Response Code: {res.status_code}")
-                if res.status_code == 200:
-                    print("✅ 잔디 전송 성공!")
-                else:
-                    print(f"❌ 잔디 실패: {res.status_code} {res.text}")
-            except Exception as e:
-                print(f"❌ 잔디 에러: {e}")
-        else:
-            print("📭 [JANDI] 오늘은 세 팀 모두 일정이 없습니다.")
-    else:
-        print("⚠️ JANDI_WEBHOOK_URL 미설정")
+   
 
     print("[DEBUG] Closing browser...")
     browser.close()
