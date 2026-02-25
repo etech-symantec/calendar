@@ -92,6 +92,13 @@ def run(playwright):
             extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
         except:
             extracted_html = "<p>Failed to load data.</p>"
+
+    # ------------------------------------------------------------------
+    # [추가됨] 불필요한 이미지 태그 삭제
+    # ------------------------------------------------------------------
+    if extracted_html:
+        extracted_html = extracted_html.replace('<img src="/schedule/resources/Images/ico/resources_ico.png">', '')
+
     print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
 
     # ------------------------------------------------------------------
