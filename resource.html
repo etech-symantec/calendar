@@ -60,6 +60,12 @@
             /* 기본 막대 (회색) */
             .timeline-event-bar { position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }
             .timeline-event-bar:hover { z-index: 10; overflow: visible; white-space: normal; height: auto; }
+            /* 🌟 [추가됨] 차량 (진한 회색 - !important로 덮어씀) */
+            .timeline-event-bar.vehicle { background-color: #4b5563 !important; border: 1px solid #374151 !important; color: #ffffff !important; }
+            .timeline-event-bar.vehicle:hover { background-color: #1f2937 !important; }
+            
+            /* 🌟 [추가됨] 시에스타/테라피 (점선 테두리) */
+            .timeline-event-bar.rest { border-style: dashed !important; border-width: 2px !important; }
             
             /* 팀별 색상 */
             .timeline-event-bar.blue { background-color: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; }
@@ -76,7 +82,7 @@
         <div class="header-container">
             <div class="header-left">
                 <h2>📅 자원 일정 대시보드</h2>
-                <span class="sync-time">Update: 2026-02-25 13:04:33</span>
+                <span class="sync-time">Update: 2026-02-25 13:15:28</span>
             </div>
             <div class="nav-top">
                 <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
@@ -332,6 +338,19 @@
                         bar.classList.add('yellow');
                     } else if (greenTeam.some(m => event.name.includes(m))) {
                         bar.classList.add('green');
+                    }
+
+                    // 🌟 [추가됨] 차량 (진한 회색)
+                    // 자원명이나 예약명에 '차량'이 포함되면 vehicle 클래스 추가
+                    if (event.resource.includes("차량") || event.title.includes("차량")) {
+                        bar.classList.add('vehicle');
+                    }
+                    
+                    // 🌟 [추가됨] 시에스타/테라피 (점선)
+                    // 자원명이나 예약명에 '시에스타' 또는 '테라피'가 포함되면 rest 클래스 추가
+                    if (event.resource.includes("시에스타") || event.title.includes("시에스타") || 
+                        event.resource.includes("테라피") || event.title.includes("테라피")) {
+                        bar.classList.add('rest');
                     }
 
                     bar.style.left = `${left}%`;
