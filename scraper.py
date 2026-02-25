@@ -223,7 +223,7 @@ def run(playwright):
             .link-resource {{ background-color: #10b981; }} /* Emerald */
             
             .sync-time {{ color: #7f8c8d; font-size: 10px; margin-bottom: 15px; text-align: right; }}
-            .controls {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }}
+            .controls {{ display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; }}
             .btn-group {{ display: flex; gap: 5px; }}
             .btn {{ border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.2s; }}
             
