@@ -288,21 +288,20 @@ def run(playwright):
             /* 기본 막대 (회색) */
             .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
             .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; }}
-            /* 🌟 [추가됨] 차량 (진한 회색 - !important로 덮어씀) */
-            .timeline-event-bar.vehicle {{ background-color: #6c7787 !important; border: 1px solid #374151 !important; color: #ffffff !important; }}
-            .timeline-event-bar.vehicle:hover {{ background-color: #1f2937 !important; }}
+            /* 🌟 [추가됨] 차량 (진한 회색) */
+            .timeline-event-bar.vehicle {{ background-color: #6c7787; border: 1px solid #374151; color: #ffffff; }}
             
             /* 🌟 [추가됨] 시에스타/테라피 (점선 테두리) */
-            .timeline-event-bar.rest {{ border-style: dashed !important; border-width: 1px !important; background-color: #d8e8e8 !important; color: #334155 !important; }}
+            .timeline-event-bar.rest {{ border-style: dashed !important; border-width: 1px !important; background-color: #d8e8e8; color: #334155; }}
             
             /* 팀별 색상 */
-            .timeline-event-bar.blue {{ background-color: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; }}
+            .timeline-event-bar.blue {{ background-color: #e0f2fe !important; border-color: #bae6fd !important; color: #0369a1 !important; }}
             .timeline-event-bar.blue:hover {{ background-color: #f0f9ff; }}
             
-            .timeline-event-bar.yellow {{ background-color: #fef9c3; border: 1px solid #fde047; color: #854d0e; }}
+            .timeline-event-bar.yellow {{ background-color: #fef9c3 !important; border-color: #fde047 !important; color: #854d0e !important; }}
             .timeline-event-bar.yellow:hover {{ background-color: #fefce8; }}
             
-            .timeline-event-bar.green {{ background-color: #dcfce7; border: 1px solid #bbf7d0; color: #166534; }}
+            .timeline-event-bar.green {{ background-color: #dcfce7 !important; border-color: #bbf7d0 !important; color: #166534 !important; }}
             .timeline-event-bar.green:hover {{ background-color: #f0fdf4; }}
         </style>
     </head>
