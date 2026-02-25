@@ -32,11 +32,10 @@ def run(playwright):
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # [변경됨] 2. 상단 '일정' 메뉴 클릭
+    # 2. 상단 '일정' 메뉴 클릭
     # ------------------------------------------------------------------
     print("2. Clicking top '일정' (Schedule) menu...")
     try:
-        # 기존에 사용했던 '일정' 메뉴 ID 재사용
         page.click('#topMenu300000000', timeout=20000)
     except Exception as e:
         print(f"[DEBUG] ID click failed, trying text: {e}")
@@ -46,17 +45,14 @@ def run(playwright):
     time.sleep(3)
 
     # ------------------------------------------------------------------
-    # [변경됨] 3. 좌측 '자원관리' -> '자원캘린더' 클릭
+    # 3. 좌측 '자원관리' -> '자원캘린더' 클릭
     # ------------------------------------------------------------------
     print("3. Clicking left '자원관리' -> '자원캘린더'...")
     try:
-        # 1. 좌측 메뉴에서 '자원관리' 클릭 (폴더 열기)
         print("   - Clicking '자원관리'...")
-
         page.locator('text="자원관리"').click(timeout=10000)
-        time.sleep(1) # 메뉴가 펼쳐지는 시간 대기
+        time.sleep(1) 
 
-        # 2. '자원캘린더' 클릭
         print("   - Clicking '자원캘린더'...")
         page.locator('text="자원캘린더"').click(timeout=10000)
     except Exception as e:
@@ -79,37 +75,12 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5. Extract HTML for Dashboard
+    # 5 & 6. 데이터 추출 및 분석
     # ------------------------------------------------------------------
-    print("5. Extracting Dashboard HTML...")
-    extracted_html = ""
-    try:
-        # 테이블 ID가 동일하다고 가정 (#customListMonthDiv)
-        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
-    except Exception as e:
-        print(f"[DEBUG] Extraction error: {e}")
-        try:
-            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
-        except:
-            extracted_html = "<p>Failed to load data.</p>"
-
-    # ------------------------------------------------------------------
-    # [추가됨] 불필요한 이미지 태그 삭제
-    # ------------------------------------------------------------------
-    if extracted_html:
-        extracted_html = extracted_html.replace('<img src="/schedule/resources/Images/ico/resources_ico.png">', '')
-
-    print(f"[DEBUG] Extracted HTML length: {len(extracted_html)}")
-
-    # ------------------------------------------------------------------
-    # 6. Python-side Calculation for BOTH Teams
-    # ------------------------------------------------------------------
-    print("6. Calculating Today's Schedule for Blue & Yellow & Green Teams...")
+    print("5. Extracting & Processing Data...")
     
     kst = timezone(timedelta(hours=9))
     now = datetime.now(kst)
-    
-    # 요일 구하기 (0:월, ... 6:일)
     weekday_index = now.weekday()
     weekday_list = ["월", "화", "수", "목", "금", "토", "일"]
     weekday_str = weekday_list[weekday_index]
@@ -120,7 +91,7 @@ def run(playwright):
     today_blue_events = []
     today_yellow_events = []
     today_green_events = []
-    final_grid_data = []
+    final_grid_data = [] 
     
     try:
         # 1. Locate the table
@@ -132,13 +103,13 @@ def run(playwright):
             table_handle = page.locator('#customListMonthDiv table')
         
         if table_handle and table_handle.count() > 0:
-            # 2. Get all row data using JS evaluation
+            # 2. Get all row data
             rows_data = table_handle.first.evaluate("""(table) => {
                 const rows = Array.from(table.rows);
                 return rows.map(tr => {
                     return Array.from(tr.children).map(cell => ({
                         text: cell.innerText.trim(),
-                        html: cell.innerHTML,
+                        html: cell.innerHTML, 
                         tagName: cell.tagName,
                         className: cell.className,
                         style: cell.getAttribute('style') || '',
@@ -159,13 +130,12 @@ def run(playwright):
                     while c_idx < len(grid[r_idx]) and grid[r_idx][c_idx] is not None:
                         c_idx += 1
                     
-                    # 이미지 태그 제거
                     cell_html = cell['html']
                     cell_html = cell_html.replace('<img src="/schedule/resources/Images/ico/resources_ico.png">', '')
 
                     cell_obj = {
                         'text': cell['text'],
-                        'html': cell_html,
+                        'html': cell_html, 
                         'tag': cell['tagName'],
                         'cls': cell['className'],
                         'style': cell['style']
@@ -185,7 +155,7 @@ def run(playwright):
                                 grid[target_row].append(None)
                             grid[target_row][target_col] = cell_obj
                     c_idx += colspan
-
+            
             final_grid_data = grid
 
             # 4. Filter Logic
@@ -214,25 +184,18 @@ def run(playwright):
                     m = int(nums[1])
                     d = int(nums[2])
 
-                # Check Date
                 if m == now.month and d == now.day:
-                    # 🔵 Check Blue Team
                     if any(member in name_txt for member in blue_team):
                         if title_txt and title_txt not in today_blue_events:
                             today_blue_events.append(title_txt)
-                            print(f"[DEBUG] [Blue] Found: {title_txt} ({name_txt})")
                     
-                    # 🟡 Check Yellow Team
                     if any(member in name_txt for member in yellow_team):
                         if title_txt and title_txt not in today_yellow_events:
                             today_yellow_events.append(title_txt)
-                            print(f"[DEBUG] [Yellow] Found: {title_txt} ({name_txt})")
-                    
-                    # 🟢 그린팀 체크
+
                     if any(member in name_txt for member in green_team):
                         if title_txt and title_txt not in today_green_events:
                             today_green_events.append(title_txt)
-                            print(f"[DEBUG] [Green] Found: {title_txt} ({name_txt})")
 
         else:
             print("[ERROR] Table not found for data extraction.")
@@ -246,7 +209,7 @@ def run(playwright):
     # 7. Create resource.html
     # ------------------------------------------------------------------
     json_grid_data = json.dumps(final_grid_data, ensure_ascii=False)
-    
+
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -255,14 +218,15 @@ def run(playwright):
         <title>자원일정 대시보드</title>
         <style>
             body {{ font-family: 'Pretendard', sans-serif; padding: 15px; background-color: #f8f9fa; color: #333; font-size: 11px; }}
-            /* 제목과 버튼을 감싸는 컨테이너 */
+            
             .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
             h2 {{ color: #2c3e50; margin: 0; font-size: 18px; }}
+            
             .nav-top {{ display: flex; gap: 8px; }}
             .nav-link {{ text-decoration: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; color: white; transition: 0.2s; }}
             .nav-link:hover {{ opacity: 0.9; }}
-            .link-shared {{ background-color: #6366f1; }} /* Indigo */
-            .link-resource {{ background-color: #10b981; }} /* Emerald */
+            .link-shared {{ background-color: #6366f1; }} 
+            .link-resource {{ background-color: #10b981; }}
 
             .sync-time {{ color: #7f8c8d; font-size: 10px; margin-bottom: 15px; text-align: right; }}
             .controls {{ display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; }}
@@ -271,13 +235,16 @@ def run(playwright):
             
             .btn-blue {{ background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }}
             .btn-blue.active, .btn-blue:hover {{ background-color: #0ea5e9; color: white; }}
+            
             .btn-yellow {{ background-color: #fef9c3; color: #854d0e; border: 1px solid #fde047; }}
             .btn-yellow.active, .btn-yellow:hover {{ background-color: #eab308; color: white; }}
+            
             .btn-green {{ background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }}
             .btn-green.active, .btn-green:hover {{ background-color: #22c55e; color: white; }}
 
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
+            
             .summary-box {{ background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
             .summary-box h3 {{ margin: 0 0 8px 0; color: #e11d48; font-size: 13px; }}
             .summary-box ul {{ margin: 0; padding-left: 20px; line-height: 1.5; color: #333; }}
@@ -288,38 +255,31 @@ def run(playwright):
             th {{ background-color: #e5e7eb !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; color: #374151; }}
             .hidden-row {{ display: none !important; }}
             .hidden-cell {{ display: none !important; }}
-            
-            /* 상단 이동 버튼 스타일 */
-            .nav-top {{ margin-bottom: 15px; display: flex; gap: 8px; }}
-            .nav-link {{ text-decoration: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; font-size: 12px; color: white; transition: 0.2s; }}
-            .nav-link:hover {{ opacity: 0.9; }}
-            .link-shared {{ background-color: #6366f1; }} /* Indigo */
-            .link-resource {{ background-color: #10b981; }} /* Emerald */
 
-            /* 타임라인 스타일 */
+            /* 🌟 타임라인 스타일 추가 */
             #timeline-container {{ background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }}
-            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; }}
+            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; }}
             .timeline-hour-marker {{ position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }}
             .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
-            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #e0f2fe; border: 1px solid #bae6fd; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #0369a1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }}
+            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #e0f2fe; border: 1px solid #bae6fd; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #0369a1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
             .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; background-color: #f0f9ff; }}
         </style>
     </head>
     <body>
         <div class="header-container">
-            <h2>📅 자원일정 대시보드</h2>
+            <h2>📅 자원 일정 대시보드</h2>
             <div class="nav-top">
                 <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
                 <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
             </div>
         </div>
-        
+
         <div id="timeline-container">
             <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
             <div id="timeline-chart">
                 </div>
         </div>
-        
+
         <div class="controls">
             <div class="btn-group">
                 <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
@@ -328,116 +288,133 @@ def run(playwright):
                 <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
             </div>
         </div>
+        
         <div class="summary-box">
             <h3>🔥 선택된 팀의 오늘 일정</h3>
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
         <p class="sync-time">Update: {kst_now_str}</p>
+        
         <div class="table-container" id="wrapper">
             <table></table>
         </div>
-        <div class="table-container" id="wrapper">{extracted_html}</div>
+
         <script>
             const gridData = {json_grid_data}; 
             
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
+
             document.addEventListener("DOMContentLoaded", function() {{
                 renderTable();
                 applyFilter('blue');
-                renderTimeline(); // 타임라인 렌더링 함수 호출
+                renderTimeline(); // 타임라인 실행
             }});
 
             function renderTable() {{
                 const table = document.querySelector('#wrapper table');
-                if(!table) return;
-                const trs = Array.from(table.rows);
-                const grid = [];
-                trs.forEach((tr, r) => {{
-                    if (!grid[r]) grid[r] = [];
-                    let c = 0;
-                    Array.from(tr.cells).forEach(cell => {{
-                        while (grid[r][c]) c++;
-                        const rs = cell.rowSpan || 1;
-                        const cs = cell.colSpan || 1;
-                        for (let rr = 0; rr < rs; rr++) {{
-                            for (let cc = 0; cc < cs; cc++) {{
-                                if (!grid[r + rr]) grid[r + rr] = [];
-                                grid[r + rr][c + cc] = {{ html: cell.innerHTML, tag: cell.tagName, cls: cell.className }};
-                            }}
+                if (!gridData || gridData.length === 0) {{
+                    table.innerHTML = "<tr><td>데이터가 없습니다.</td></tr>";
+                    return;
+                }}
+
+                let html = '<tbody>';
+                gridData.forEach((row, rowIndex) => {{
+                    let rowClass = (rowIndex === 0) ? 'header-row' : '';
+                    html += `<tr class="${{rowClass}}">`;
+                    row.forEach(cell => {{
+                        if(cell) {{
+                            let style = cell.style;
+                            if(rowIndex === 0) style += "; background-color: #e5e7eb; font-weight: bold;";
+                            html += `<${{cell.tag}} class="${{cell.cls}}" style="${{style}}">${{cell.html}}</${{cell.tag}}>`;
+                        }} else {{
+                            html += '<td></td>';
                         }}
                     }});
+                    html += '</tr>';
                 }});
-                let newBody = '<tbody>';
-                for (let r = 0; r < grid.length; r++) {{
-                    newBody += '<tr>';
-                    grid[r].forEach(cell => {{ newBody += `<${{cell.tag}} class="${{cell.cls}}">${{cell.html}}</${{cell.tag}}>`; }});
-                    newBody += '</tr>';
-                }}
-                table.innerHTML = newBody + '</tbody>';
-                applyFilter('blue');
-            }});
+                html += '</tbody>';
+                table.innerHTML = html;
+            }}
 
             function applyFilter(team) {{
                 document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
                 document.querySelector(`.btn-${{team}}`).classList.add('active');
+                
                 const rows = Array.from(document.querySelectorAll('#wrapper tbody tr'));
-                rows.forEach(r => {{
-                    r.classList.remove('hidden-row');
-                    r.style.backgroundColor = '';
-                    const first = r.children[0];
-                    first.classList.remove('hidden-cell');
-                    first.setAttribute('rowspan', 1);
-                    Array.from(r.children).forEach(c => {{ c.style.color = ''; c.style.fontWeight = ''; }});
-                }});
-                let visible = rows.filter((r, idx) => {{
-                    if(idx === 0) return true; // 헤더
-                    const name = r.cells[r.cells.length-1].innerText.trim();
-                    if(team === 'all') return true;
-                    if(team === 'blue') return blueTeam.some(m => name.includes(m));
-                    if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
-                    if(team === 'green') return greenTeam.some(m => name.includes(m));
-                    return false;
-                }});
-                rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
-                if(visible.length > 0) {{
-                    let lastCell = visible[0].cells[0], lastText = lastCell.innerText.trim(), count = 1;
-                    for(let i=1; i<visible.length; i++) {{
-                        const cur = visible[i].cells[0], curText = cur.innerText.trim();
-                        if(curText === lastText && curText !== "") {{ cur.classList.add('hidden-cell'); count++; lastCell.setAttribute('rowspan', count); }}
-                        else {{ lastCell = cur; lastText = curText; count = 1; }}
+                
+                let visibleRows = [];
+
+                rows.forEach((r, idx) => {{
+                    if(idx === 0) {{ 
+                        r.classList.remove('hidden-row');
+                        return;
                     }}
-                }}
-                const today = new Date(), tM = today.getMonth()+1, tD = today.getDate();
-                const list = document.getElementById('today-list'); list.innerHTML = '';
-                let todayCount = 0, currentIsToday = false;
-                visible.forEach(r => {{
-                    const dateCell = r.cells[0];
-                    if(!dateCell.classList.contains('hidden-cell')) {{
-                        const nums = dateCell.innerText.match(/\\d+/g);
-                        if(nums && nums.length >= 2) {{
-                            let m = parseInt(nums[0]), d = parseInt(nums[1]);
-                            if(nums.length>=3 && parseInt(nums[0])>2000) {{ m=parseInt(nums[1]); d=parseInt(nums[2]); }}
-                            currentIsToday = (m === tM && d === tD);
-                        }}
-                    }}
-                    if(currentIsToday) {{
-                        r.style.backgroundColor = '#fff1f2';
-                        Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
-                        const tds = r.querySelectorAll('td');
-                        if (tds.length >= 3) {{
-                            const title = tds[1].innerText.trim();
-                            const li = document.createElement('li');
-                            li.innerText = title; 
-                            list.appendChild(li); todayCount++;
-                        }}
+
+                    const cells = r.querySelectorAll('td, th');
+                    if(cells.length === 0) return;
+                    const name = cells[cells.length-1].innerText.trim();
+                    
+                    let isVisible = false;
+                    if(team === 'all') isVisible = true;
+                    if(team === 'blue' && blueTeam.some(m => name.includes(m))) isVisible = true;
+                    if(team === 'yellow' && yellowTeam.some(m => name.includes(m))) isVisible = true;
+                    if(team === 'green' && greenTeam.some(m => name.includes(m))) isVisible = true;
+
+                    if(isVisible) {{
+                        r.classList.remove('hidden-row');
+                        visibleRows.push(r);
+                    }} else {{
+                        r.classList.add('hidden-row');
                     }}
                 }});
-                if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
+
+                updateSummary(visibleRows);
             }}
 
-            // --- 타임라인 렌더링 로직 ---
+            function updateSummary(visibleRows) {{
+                const today = new Date();
+                const tM = today.getMonth() + 1;
+                const tD = today.getDate();
+                const list = document.getElementById('today-list'); 
+                list.innerHTML = '';
+                
+                let count = 0;
+                let isTodayGroup = false;
+
+                visibleRows.forEach(r => {{
+                    if(r.classList.contains('header-row') || r.rowIndex === 0) return;
+
+                    const cells = r.querySelectorAll('td, th');
+                    if(cells.length < 2) return;
+
+                    const dateText = cells[0].innerText;
+                    const nums = dateText.match(/\\d+/g);
+                    
+                    if(nums && nums.length >= 2) {{
+                        let m = parseInt(nums[0]);
+                        let d = parseInt(nums[1]);
+                        if(nums.length >= 3 && parseInt(nums[0]) > 2000) {{ m = parseInt(nums[1]); d = parseInt(nums[2]); }}
+                        isTodayGroup = (m === tM && d === tD);
+                    }}
+
+                    if(isTodayGroup) {{
+                        r.style.backgroundColor = '#fff1f2'; 
+                        const title = cells[2] ? cells[2].innerText.trim() : cells[1].innerText.trim();
+                        const li = document.createElement('li');
+                        li.innerText = title;
+                        list.appendChild(li);
+                        count++;
+                    }} else {{
+                        r.style.backgroundColor = ''; 
+                    }}
+                }});
+
+                if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
+            }}
+
+            // 🌟 타임라인 렌더링 함수
             function renderTimeline() {{
                 const timelineChart = document.getElementById('timeline-chart');
                 const today = new Date();
@@ -445,10 +422,9 @@ def run(playwright):
                 const tD = today.getDate();
                 let todayEvents = [];
 
-                // 1. 오늘 일정 추출 및 파싱
                 if (gridData) {{
                     gridData.forEach((row, idx) => {{
-                        if (idx === 0) return; // 헤더 제외
+                        if (idx === 0) return; 
                         const dateText = row[0].text;
                         const nums = dateText.match(/\\d+/g);
                         let isToday = false;
@@ -459,18 +435,16 @@ def run(playwright):
                         }}
 
                         if (isToday) {{
-                            // 시간 파싱 (예: 09:55 - 10:55 또는 10:00)
-                            let timeText = row[2] ? row[2].text : (row[1] ? row[1].text : ""); // 보통 3번째 셀이 시간/제목
+                            // 시간 파싱 (HH:MM - HH:MM 형태)
+                            let timeText = row[2] ? row[2].text : (row[1] ? row[1].text : ""); 
                             let startTimeStr = "09:00", endTimeStr = "18:00";
                             
-                            // 시간 추출 정규식 (HH:MM - HH:MM 형태 또는 HH:MM 형태)
                             const timeMatch = timeText.match(/(\\d{{2}}:\\d{{2}})(?:\\s*-\\s*(\\d{{2}}:\\d{{2}}))?/);
                             if (timeMatch) {{
                                 startTimeStr = timeMatch[1];
                                 if (timeMatch[2]) {{
                                     endTimeStr = timeMatch[2];
                                 }} else {{
-                                    // 종료 시간이 없으면 기본 1시간으로 가정
                                     let [sh, sm] = startTimeStr.split(':').map(Number);
                                     let endH = sh + 1;
                                     endTimeStr = `${{endH.toString().padStart(2, '0')}}:${{sm.toString().padStart(2, '0')}}`;
@@ -487,47 +461,42 @@ def run(playwright):
                     }});
                 }}
 
-                // 2. 타임라인 그리드 그리기 (09:00 ~ 18:00)
                 const startHour = 9, endHour = 18;
                 const totalMinutes = (endHour - startHour) * 60;
                 
+                // 시간축 그리기
                 for (let h = startHour; h <= endHour; h++) {{
                     const position = ((h - startHour) * 60 / totalMinutes) * 100;
-                    
-                    // 시간 마커
                     const marker = document.createElement('div');
                     marker.className = 'timeline-hour-marker';
                     marker.style.left = `${{position}}%`;
                     marker.innerText = `${{h.toString().padStart(2, '0')}}:00`;
                     timelineChart.appendChild(marker);
 
-                    // 그리드 선
                     const gridLine = document.createElement('div');
                     gridLine.className = 'timeline-grid-line';
                     gridLine.style.left = `${{position}}%`;
                     timelineChart.appendChild(gridLine);
                 }}
 
-                // 3. 일정 배치 (레이아웃 알고리즘)
-                todayEvents.sort((a, b) => a.start - b.start); // 시작 시간 정렬
-                const levels = []; // 각 레벨의 마지막 종료 시간 저장
+                // 일정 그리기
+                todayEvents.sort((a, b) => a.start - b.start);
+                const levels = []; 
 
                 todayEvents.forEach(event => {{
-                    // 배치할 레벨 찾기
                     let levelIndex = levels.findIndex(end => event.start >= end);
                     if (levelIndex === -1) {{
-                        levelIndex = levels.length; // 새 레벨 추가
+                        levelIndex = levels.length;
                         levels.push(event.end);
                     }} else {{
-                        levels[levelIndex] = event.end; // 해당 레벨 종료 시간 업데이트
+                        levels[levelIndex] = event.end; 
                     }}
 
-                    // 막대 생성 및 스타일링
                     const startMinutesFromBase = Math.max(0, event.start - (startHour * 60));
-                    const duration = Math.max(10, event.end - event.start); // 최소 10분
+                    const duration = Math.max(10, event.end - event.start); 
                     const left = (startMinutesFromBase / totalMinutes) * 100;
                     const width = (duration / totalMinutes) * 100;
-                    const top = levelIndex * 30; // 레벨당 30px 높이
+                    const top = levelIndex * 30;
 
                     const bar = document.createElement('div');
                     bar.className = 'timeline-event-bar';
@@ -535,12 +504,11 @@ def run(playwright):
                     bar.style.width = `${{width}}%`;
                     bar.style.top = `${{top}}px`;
                     bar.innerText = `[${{event.name}}] ${{event.text}}`;
-                    bar.title = `[${{event.name}}] ${{event.text}}`; // 툴팁
+                    bar.title = `[${{event.name}}] ${{event.text}}`; 
                     
                     timelineChart.appendChild(bar);
                 }});
 
-                // 차트 높이 조정
                 timelineChart.style.height = `${{(levels.length || 1) * 30 + 20}}px`;
             }}
 
@@ -557,7 +525,60 @@ def run(playwright):
         f.write(html_template)
     print("✅ resource.html created!")
 
-    
+    # ------------------------------------------------------------------
+    # 8. Jandi Notification (그린팀 추가됨)
+    # ------------------------------------------------------------------
+    if JANDI_URL:
+        print("[DEBUG] Jandi URL exists, proceeding...")
+        
+        if weekday_index >= 5:
+            print(f"📭 [JANDI] 오늘은 주말({weekday_str}요일)이라 알림을 보내지 않습니다.")
+        
+        elif today_blue_events or today_yellow_events or today_green_events:
+            print(f"🚀 [JANDI] Sending Combined Schedule...")
+            
+            body_text = f"📅 **오늘의 일정 ({now.month}/{now.day} {weekday_str})**\n\n"
+            
+            if today_blue_events:
+                body_text += "🔵 **[블루팀]**\n"
+                for item in today_blue_events:
+                    body_text += f"- {item}\n"
+                body_text += "\n" 
+
+            if today_yellow_events:
+                body_text += "🟡 **[옐로우팀]**\n"
+                for item in today_yellow_events:
+                    body_text += f"- {item}\n"
+                body_text += "\n"
+
+            if today_green_events: 
+                body_text += "🟢 **[그린팀]**\n"
+                for item in today_green_events:
+                    body_text += f"- {item}\n"
+
+            payload = {
+                "body": body_text,
+                "connectColor": "#00A1E9", 
+                "connectInfo": [] 
+            }
+            
+            print(f"[DEBUG] Payload to send:\n{body_text}")
+
+            headers = { "Accept": "application/vnd.tosslab.jandi-v2+json", "Content-Type": "application/json" }
+            
+            try:
+                res = requests.post(JANDI_URL, json=payload, headers=headers)
+                print(f"[DEBUG] Jandi Response Code: {res.status_code}")
+                if res.status_code == 200:
+                    print("✅ 잔디 전송 성공!")
+                else:
+                    print(f"❌ 잔디 실패: {res.status_code} {res.text}")
+            except Exception as e:
+                print(f"❌ 잔디 에러: {e}")
+        else:
+            print("📭 [JANDI] 오늘은 세 팀 모두 일정이 없습니다.")
+    else:
+        print("⚠️ JANDI_WEBHOOK_URL 미설정")
 
     print("[DEBUG] Closing browser...")
     browser.close()
