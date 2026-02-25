@@ -2,7 +2,6 @@ import os
 import time
 import requests
 import re
-import json # 👈 데이터 전달을 위해 추가됨
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta, timezone
 
@@ -75,7 +74,7 @@ def run(playwright):
     time.sleep(5)
     
     # ------------------------------------------------------------------
-    # 5 & 6. 통합 데이터 추출 및 분석 (HTML 생성 준비 포함)
+    # 5 & 6. 데이터 추출 및 분석 (파이썬에서 HTML 생성)
     # ------------------------------------------------------------------
     print("5. Extracting & Processing Data...")
     
@@ -90,8 +89,10 @@ def run(playwright):
 
     today_blue_events = []
     today_yellow_events = []
-    final_grid_data = [] # HTML에 전달할 최종 데이터
     
+    # HTML Table Rows를 저장할 변수
+    table_rows_html = ""
+
     try:
         # 1. Locate the table
         table_handle = None
@@ -103,13 +104,14 @@ def run(playwright):
         
         if table_handle and table_handle.count() > 0:
             # 2. Get all row data (텍스트 + HTML 스타일 포함)
+            # 파이썬으로 가공하기 쉽게 데이터를 구조화해서 가져옵니다.
             rows_data = table_handle.first.evaluate("""(table) => {
                 const rows = Array.from(table.rows);
                 return rows.map(tr => {
                     return Array.from(tr.children).map(cell => ({
                         text: cell.innerText.trim(),
-                        html: cell.innerHTML, // 스타일 유지를 위해 HTML 가져옴
-                        tagName: cell.tagName,
+                        html: cell.innerHTML, 
+                        tagName: cell.tagName.toLowerCase(),
                         className: cell.className,
                         style: cell.getAttribute('style') || '',
                         rowspan: parseInt(cell.getAttribute('rowspan') || 1, 10),
@@ -118,8 +120,10 @@ def run(playwright):
                 });
             }""")
 
-            # 3. Python-side Table Flattening
+            # 3. Python-side Table Flattening & HTML Generation
             grid = []
+            
+            # (A) Flatten Logic
             for r_idx, row in enumerate(rows_data):
                 while len(grid) <= r_idx:
                     grid.append([])
@@ -129,15 +133,7 @@ def run(playwright):
                     while c_idx < len(grid[r_idx]) and grid[r_idx][c_idx] is not None:
                         c_idx += 1
                     
-                    # Store complex object for HTML generation
-                    cell_obj = {
-                        'text': cell['text'],
-                        'html': cell['html'],
-                        'tag': cell['tagName'],
-                        'cls': cell['className'],
-                        'style': cell['style']
-                    }
-                    
+                    cell_obj = cell # Keep full object
                     rowspan = cell['rowspan']
                     colspan = cell['colspan']
                     
@@ -150,12 +146,11 @@ def run(playwright):
                             target_col = c_idx + cc
                             while len(grid[target_row]) <= target_col:
                                 grid[target_row].append(None)
+                            # 셀 데이터를 복사해서 넣음
                             grid[target_row][target_col] = cell_obj
                     c_idx += colspan
             
-            final_grid_data = grid # 저장해둠 (HTML용)
-
-            # 4. Filter Logic
+            # (B) Filtering & HTML Generation Logic
             blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
             yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
             
@@ -164,19 +159,34 @@ def run(playwright):
             for row in grid:
                 if len(row) < 3: continue
 
-                # grid 요소가 dict이므로 text만 뽑아서 분석
+                # 날짜 및 이름 추출 (분석용)
                 date_txt = row[0]['text']
                 name_txt = row[-1]['text']
                 title_txt = row[2]['text'] if len(row) > 2 else row[1]['text']
 
+                # 날짜 파싱
                 clean_date = re.sub(r'\s+', '', date_txt)
                 nums = re.findall(r'\d+', clean_date)
                 
-                if len(nums) < 2: continue
+                # HTML Row 생성 (파이썬에서 직접 그림)
+                # 이 행의 작성자를 data-name 속성에 넣어서 나중에 JS로 필터링하기 쉽게 만듦
+                tr_html = f'<tr data-name="{name_txt}">'
+                for cell in row:
+                    if cell:
+                        # 원본 스타일과 클래스를 유지하며 셀 생성
+                        tr_html += f'<{cell["tagName"]} class="{cell["className"]}" style="{cell["style"]}">{cell["html"]}</{cell["tagName"]}>'
+                    else:
+                        tr_html += '<td></td>'
+                tr_html += '</tr>'
                 
+                table_rows_html += tr_html # 전체 HTML에 추가
+
+                # -----------------------
+                # 잔디 전송용 데이터 추출
+                # -----------------------
+                if len(nums) < 2: continue
                 m = int(nums[0])
                 d = int(nums[1])
-                
                 if len(nums) >= 3 and int(nums[0]) > 2000:
                     m = int(nums[1])
                     d = int(nums[2])
@@ -194,18 +204,19 @@ def run(playwright):
 
         else:
             print("[ERROR] Table not found for data extraction.")
+            table_rows_html = "<tr><td>데이터를 불러오지 못했습니다. (테이블 없음)</td></tr>"
 
     except Exception as e:
         print(f"[ERROR] Python calculation failed: {e}")
+        table_rows_html = f"<tr><td>에러 발생: {e}</td></tr>"
 
     print(f"[DEBUG] Blue Events: {len(today_blue_events)}, Yellow Events: {len(today_yellow_events)}")
 
     # ------------------------------------------------------------------
-    # 7. Create resource.html (파이썬 데이터를 JS로 주입)
+    # 7. Create resource.html
     # ------------------------------------------------------------------
-    # 파이썬 리스트를 JSON 문자열로 변환
-    json_grid_data = json.dumps(final_grid_data, ensure_ascii=False)
-
+    # 파이썬이 만든 HTML 테이블 행(table_rows_html)을 템플릿에 바로 꽂아넣습니다.
+    
     html_template = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -251,73 +262,49 @@ def run(playwright):
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
         <p class="sync-time">Update: {kst_now_str}</p>
+        
         <div class="table-container" id="wrapper">
-            <table></table>
+            <table id="scheduleTable">
+                <tbody>
+                    {table_rows_html}
+                </tbody>
+            </table>
         </div>
+
         <script>
-            // 파이썬에서 만든 데이터를 그대로 받음 (이 부분이 핵심!)
-            const gridData = {json_grid_data}; 
-            
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
 
             document.addEventListener("DOMContentLoaded", function() {{
-                renderTable();
-                applyFilter('blue');
+                applyFilter('blue'); // 초기 필터
             }});
 
-            function renderTable() {{
-                const table = document.querySelector('#wrapper table');
-                if (!gridData || gridData.length === 0) {{
-                    table.innerHTML = "<tr><td>데이터가 없습니다.</td></tr>";
-                    return;
-                }}
-
-                let html = '<tbody>';
-                gridData.forEach(row => {{
-                    html += '<tr>';
-                    row.forEach(cell => {{
-                        if(cell) {{
-                            // 파이썬에서 가져온 HTML 스타일을 그대로 적용
-                            html += `<${{cell.tag}} class="${{cell.cls}}" style="${{cell.style}}">${{cell.html}}</${{cell.tag}}>`;
-                        }} else {{
-                            html += '<td></td>';
-                        }}
-                    }});
-                    html += '</tr>';
-                }});
-                html += '</tbody>';
-                table.innerHTML = html;
-            }}
-
             function applyFilter(team) {{
+                // 버튼 스타일 변경
                 document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
                 document.querySelector(`.btn-${{team}}`).classList.add('active');
                 
-                const rows = Array.from(document.querySelectorAll('#wrapper tbody tr'));
-                
-                let visible = rows.filter(r => {{
-                    // 이름은 마지막 셀에 있다고 가정
-                    const cells = r.querySelectorAll('td, th');
-                    if(cells.length === 0) return false;
-                    const name = cells[cells.length-1].innerText.trim();
-                    
-                    if(team === 'all') return true;
-                    if(team === 'blue') return blueTeam.some(m => name.includes(m));
-                    if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
-                    return false;
-                }});
+                const rows = Array.from(document.querySelectorAll('#scheduleTable tbody tr'));
+                let visibleRows = [];
 
-                rows.forEach(r => {{ 
-                    if(visible.includes(r)) {{
+                rows.forEach(r => {{
+                    // 파이썬에서 넣어준 data-name 속성을 확인
+                    const name = r.getAttribute('data-name') || "";
+                    let isVisible = false;
+
+                    if(team === 'all') isVisible = true;
+                    else if(team === 'blue' && blueTeam.some(m => name.includes(m))) isVisible = true;
+                    else if(team === 'yellow' && yellowTeam.some(m => name.includes(m))) isVisible = true;
+
+                    if(isVisible) {{
                         r.classList.remove('hidden-row');
+                        visibleRows.push(r);
                     }} else {{
                         r.classList.add('hidden-row');
                     }}
                 }});
 
-                // 오늘 일정 요약 업데이트
-                updateSummary(visible);
+                updateSummary(visibleRows);
             }}
 
             function updateSummary(visibleRows) {{
@@ -331,10 +318,11 @@ def run(playwright):
                 let isTodayGroup = false;
 
                 visibleRows.forEach(r => {{
-                    const cells = r.querySelectorAll('td, th');
-                    if(cells.length < 3) return;
-
-                    const dateText = cells[0].innerText;
+                    // 첫 번째 셀(날짜) 확인
+                    const firstCell = r.querySelector('td, th');
+                    if(!firstCell) return;
+                    
+                    const dateText = firstCell.innerText;
                     const nums = dateText.match(/\\d+/g);
                     
                     if(nums && nums.length >= 2) {{
@@ -346,9 +334,11 @@ def run(playwright):
                     }}
 
                     if(isTodayGroup) {{
-                        r.style.backgroundColor = '#fff1f2'; // 하이라이트
-                        // 일정명은 보통 index 2 (없으면 index 1)
-                        const title = cells[2] ? cells[2].innerText.trim() : cells[1].innerText.trim();
+                        r.style.backgroundColor = '#fff1f2'; 
+                        // 일정명 추출 (보통 3번째 또는 2번째 셀)
+                        const cells = r.querySelectorAll('td');
+                        const title = cells[2] ? cells[2].innerText.trim() : (cells[1] ? cells[1].innerText.trim() : "일정");
+                        
                         const li = document.createElement('li');
                         li.innerText = title;
                         list.appendChild(li);
