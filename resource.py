@@ -293,7 +293,7 @@ def run(playwright):
             .timeline-event-bar.vehicle:hover {{ background-color: #1f2937 !important; }}
             
             /* 🌟 [추가됨] 시에스타/테라피 (점선 테두리) */
-            .timeline-event-bar.rest {{ backgroud-color: #d8e8e8 !important border: 1px dashed #9fbcbd !important; }}
+            .timeline-event-bar.rest {{ border-style: dashed !important; border-width: 1px !important; background-color: #d8e8e8 !important; color: #334155 !important; }}
             
             /* 팀별 색상 */
             .timeline-event-bar.blue {{ background-color: #e0f2fe; border: 1px solid #bae6fd; color: #0369a1; }}
