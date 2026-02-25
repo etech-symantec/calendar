@@ -285,9 +285,29 @@ def run(playwright):
             .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
             .timeline-grid-line.half-hour {{ border-left: 1px dashed #e5e7eb; background-color: transparent; width: 0; }} /* 30분 점선 */
 
-            /* 🌟 현재 시간 표시선 스타일 */
-            .timeline-now-line {{ position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 20; pointer-events: none; }}
-            .timeline-now-label {{ position: absolute; top: -20px; font-size: 10px; font-weight: bold; color: white; background-color: #ef4444; padding: 2px 4px; border-radius: 3px; transform: translateX(-50%); z-index: 21; }}
+            /* 🌟 [수정됨] 현재 시간 표시선 스타일 (반투명 점선) */
+            .timeline-now-line {{ 
+                position: absolute; 
+                top: 0; 
+                bottom: 0; 
+                width: 0; /* 너비를 0으로 설정하고 테두리를 사용합니다 */
+                border-left: 2px dashed rgba(239, 68, 68, 0.5); /* 50% 투명한 붉은색 점선 */
+                z-index: 20; 
+                pointer-events: none; 
+            }}
+            /* 🌟 [수정됨] 현재 시간 라벨 스타일 (라벨 배경도 약간 반투명하게 조정) */
+            .timeline-now-label {{ 
+                position: absolute; 
+                top: -20px; 
+                font-size: 10px; 
+                font-weight: bold; 
+                color: white; 
+                background-color: rgba(239, 68, 68, 0.8); /* 80% 투명한 붉은색 배경 */
+                padding: 2px 4px; 
+                border-radius: 3px; 
+                transform: translateX(-50%); 
+                z-index: 21; 
+            }}
 
             /* 기본 막대 (회색) */
             .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
