@@ -25,7 +25,7 @@ jobs:
           pip install playwright requests
           playwright install chromium
 
-      - name: 4. 파이썬 스크립트 실행 (웹 스크래핑 -> index.html 생성)
+      - name: 4. 파이썬 스크립트 실행 (웹 스크래핑 -> resource.html 생성)
         env: # ⬅️ 이 부분을 추가합니다! (금고에서 꺼내서 환경 변수로 전달)
           MY_SITE_ID: ${{ secrets.MY_SITE_ID }}
           MY_SITE_PW: ${{ secrets.MY_SITE_PW }}
@@ -36,7 +36,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html
+          git add resource.html
           # 변경 사항이 없을 경우 에러가 나지 않도록 예외 처리
           git commit -m "Auto-update: 최신 테이블 데이터 갱신" || echo "No changes to commit"
           git push
