@@ -14,7 +14,7 @@
             .nav-link { text-decoration: none; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; color: white; transition: 0.2s; }
             .nav-link:hover { opacity: 0.9; }
             .link-shared { background-color: #6366f1; } 
-            .link-resource { background-color: #10b981; }
+            .link-resource { background-color: #10b981; } 
 
             .sync-time { color: #7f8c8d; font-size: 10px; margin-bottom: 15px; text-align: right; }
             .controls { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; }
@@ -44,7 +44,7 @@
             .hidden-row { display: none !important; }
             .hidden-cell { display: none !important; }
 
-            /* 🌟 타임라인 스타일 추가 */
+            /* 타임라인 스타일 */
             #timeline-container { background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }
             #timeline-chart { position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; }
             .timeline-hour-marker { position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }
@@ -81,7 +81,7 @@
             <h3>🔥 선택된 팀의 오늘 일정</h3>
             <ul id="today-list"><li>데이터 로딩 중...</li></ul>
         </div>
-        <p class="sync-time">Update: 2026-02-25 10:43:45</p>
+        <p class="sync-time">Update: 2026-02-25 10:54:23</p>
         
         <div class="table-container" id="wrapper">
             <table></table>
@@ -97,7 +97,7 @@
             document.addEventListener("DOMContentLoaded", function() {
                 renderTable();
                 applyFilter('blue');
-                renderTimeline(); // 타임라인 실행
+                renderTimeline(); 
             });
 
             function renderTable() {
@@ -202,7 +202,7 @@
                 if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }
 
-            // 🌟 타임라인 렌더링 함수
+            // 🌟 수정된 타임라인 렌더링 (시간열 우선 분석)
             function renderTimeline() {
                 const timelineChart = document.getElementById('timeline-chart');
                 const today = new Date();
@@ -223,27 +223,37 @@
                         }
 
                         if (isToday) {
-                            // 시간 파싱 (HH:MM - HH:MM 형태)
-                            let timeText = row[2] ? row[2].text : (row[1] ? row[1].text : ""); 
+                            // 💡 시간은 항상 2번째 칸(Index 1)에 있습니다.
+                            let timeText = row[1] ? row[1].text : ""; 
                             let startTimeStr = "09:00", endTimeStr = "18:00";
                             
-                            const timeMatch = timeText.match(/(\d{2}:\d{2})(?:\s*-\s*(\d{2}:\d{2}))?/);
-                            if (timeMatch) {
-                                startTimeStr = timeMatch[1];
-                                if (timeMatch[2]) {
-                                    endTimeStr = timeMatch[2];
-                                } else {
-                                    let [sh, sm] = startTimeStr.split(':').map(Number);
-                                    let endH = sh + 1;
-                                    endTimeStr = `${endH.toString().padStart(2, '0')}:${sm.toString().padStart(2, '0')}`;
+                            // 'AllDay' 체크
+                            if (timeText.toUpperCase().includes("ALL")) {
+                                // 전일 일정은 기본값 유지
+                            } else {
+                                // 시간 추출 정규식
+                                const timeMatch = timeText.match(/(\d{2}:\d{2})(?:\s*-\s*(\d{2}:\d{2}))?/);
+                                if (timeMatch) {
+                                    startTimeStr = timeMatch[1];
+                                    if (timeMatch[2]) {
+                                        endTimeStr = timeMatch[2];
+                                    } else {
+                                        let [sh, sm] = startTimeStr.split(':').map(Number);
+                                        let endH = sh + 1;
+                                        endTimeStr = `${endH.toString().padStart(2, '0')}:${sm.toString().padStart(2, '0')}`;
+                                    }
                                 }
                             }
+
+                            // 제목(예약명)은 4번째(Index 3) 또는 3번째(Index 2)
+                            let eventTitle = row[3] ? row[3].text : (row[2] ? row[2].text : "");
+                            let bookerName = row[row.length - 1].text;
 
                             todayEvents.push({
                                 start: timeStringToMinutes(startTimeStr),
                                 end: timeStringToMinutes(endTimeStr),
-                                text: timeText,
-                                name: row[row.length - 1].text
+                                text: eventTitle,
+                                name: bookerName
                             });
                         }
                     });
@@ -291,8 +301,9 @@
                     bar.style.left = `${left}%`;
                     bar.style.width = `${width}%`;
                     bar.style.top = `${top}px`;
+                    // 예약명(제목)을 막대에 표시
                     bar.innerText = `[${event.name}] ${event.text}`;
-                    bar.title = `[${event.name}] ${event.text}`; 
+                    bar.title = `[${event.name}] ${event.text} (${event.start}~${event.end})`; 
                     
                     timelineChart.appendChild(bar);
                 });
