@@ -209,6 +209,7 @@ def run(playwright):
     <!DOCTYPE html>
     <html lang="ko">
     <head>
+        <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌠%3C/text%3E%3C/svg%3E">
         <meta charset="UTF-8">
         <title>공유 일정 대시보드</title>
         <style>
