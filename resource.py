@@ -13,9 +13,9 @@ def run(playwright):
     current_hour = now.hour
 
     # 7시 이전이거나 17시(오후 5시) 이후이면 종료 (17:59까지 작동하게 하려면 < 18로 수정)
-    #if not (7 <= current_hour < 17):
-    #    print(f"[{now.strftime('%H:%M:%S')}] 현재 시간은 스크립트 작동 범위(07시~17시)가 아닙니다. 실행을 중단합니다.")
-    #    return
+    if not (7 <= current_hour < 17):
+        print(f"[{now.strftime('%H:%M:%S')}] 현재 시간은 스크립트 작동 범위(07시~17시)가 아닙니다. 실행을 중단합니다.")
+        return
 
     print("--------------------------------------------------")
     print("🚀 Script Started: checking environment variables...")
