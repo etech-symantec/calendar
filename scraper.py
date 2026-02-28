@@ -223,7 +223,7 @@ def run(playwright):
                 margin:30px; padding:4px 32px;
               }}
             /* 제목과 버튼을 감싸는 컨테이너 */
-            .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
+            .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-top: 10px; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
             h2 {{ color: #2c3e50; margin: 0; font-size: 18px; }}
             .header-left {{ display: flex; align-items: baseline; gap: 10px; }}
 
