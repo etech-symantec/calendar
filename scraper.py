@@ -262,13 +262,13 @@ def run(playwright):
     <body>
         <!-- 공통 헤더 + 제목 + 버전 -->
         <script>
-            window.pageTitle = "TAC Case 관리 시스템";
+            window.pageTitle = "📅 공유 일정 대시보드";
             window.pageVersion = "ver.2026.3.2.01";
         </script>
         <script src="https://etech-symantec.github.io/header.js"></script>
         <div class="header-container">
             <div class="header-left">
-                <h2>📅 자원 일정 대시보드</h2>
+                <h2>📅 공유 일정 대시보드</h2>
                 <span class="sync-time">Update: {kst_now_str}</span>
             </div>
             <div class="nav-top">
