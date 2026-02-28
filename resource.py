@@ -253,7 +253,7 @@ def run(playwright):
                 background:#fff; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,0.08);
                 margin:30px; padding:4px 32px;
               }}
-            .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
+            .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-top: 10px; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
             h2 {{ color: #2c3e50; margin: 0; font-size: 18px; }}
             .header-left {{ display: flex; align-items: baseline; gap: 10px; }}
             
