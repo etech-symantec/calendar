@@ -210,6 +210,10 @@ def run(playwright):
     <html lang="ko">
     <head>
         <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌠%3C/text%3E%3C/svg%3E">
+        <link rel="stylesheet" href="https://etech-symantec.github.io/style.css" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" rel="stylesheet">
         <meta charset="UTF-8">
         <title>공유 일정 대시보드</title>
         <style>
@@ -256,6 +260,12 @@ def run(playwright):
         </style>
     </head>
     <body>
+        <!-- 공통 헤더 + 제목 + 버전 -->
+        <script>
+            window.pageTitle = "TAC Case 관리 시스템";
+            window.pageVersion = "ver.2026.3.2.01";
+        </script>
+        <script src="https://etech-symantec.github.io/header.js"></script>
         <div class="header-container">
             <div class="header-left">
                 <h2>📅 자원 일정 대시보드</h2>
