@@ -3,11 +3,18 @@
     <html lang="ko">
     <head>
         <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌠%3C/text%3E%3C/svg%3E">
+        <link rel="stylesheet" href="https://etech-symantec.github.io/style.css" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" rel="stylesheet">
         <meta charset="UTF-8">
         <title>자원일정 대시보드</title>
         <style>
             body { font-family: 'Pretendard', sans-serif; padding: 15px; background-color: #f8f9fa; color: #333; font-size: 11px; }
-            
+            .container {
+                background:#fff; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,0.08);
+                margin:30px; padding:4px 32px;
+              }
             .header-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }
             h2 { color: #2c3e50; margin: 0; font-size: 18px; }
             .header-left { display: flex; align-items: baseline; gap: 10px; }
@@ -121,38 +128,46 @@
         </style>
     </head>
     <body>
-        <div class="header-container">
-            <div class="header-left">
-                <h2>📅 자원 일정 대시보드</h2>
-                <span class="sync-time">Update: 2026-02-28 16:45:06</span>
-            </div>
-            <div class="nav-top">
-                <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
-                <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
-            </div>
-        </div>
+        <!-- 공통 헤더 + 제목 + 버전 -->
+        <script>
+            window.pageTitle = "📅 자원 일정 대시보드";
+            window.pageVersion = "ver.2026.3.2.01";
+        </script>
+        <script src="https://etech-symantec.github.io/header.js"></script>
 
-        <div id="timeline-container">
-            <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
-            <div id="timeline-chart">
+        <div class="container">
+            <div class="header-container">
+                <div class="header-left">
+                    <span class="sync-time">Update: 2026-02-28 19:28:39</span>
                 </div>
-        </div>
-
-        <div class="summary-box">
-            <div class="summary-header">
-                <h3>🔥 선택된 팀의 오늘 일정</h3>
-                <div class="btn-group">
-                    <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
-                    <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
-                    <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
-                    <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
+                <div class="nav-top">
+                    <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
+                    <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
                 </div>
             </div>
-            <ul id="today-list"><li>데이터 로딩 중...</li></ul>
-        </div>
-        
-        <div class="table-container" id="wrapper">
-            <table></table>
+    
+            <div id="timeline-container">
+                <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
+                <div id="timeline-chart">
+                    </div>
+            </div>
+    
+            <div class="summary-box">
+                <div class="summary-header">
+                    <h3>🔥 선택된 팀의 오늘 일정</h3>
+                    <div class="btn-group">
+                        <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
+                        <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
+                        <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
+                        <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
+                    </div>
+                </div>
+                <ul id="today-list"><li>데이터 로딩 중...</li></ul>
+            </div>
+            
+            <div class="table-container" id="wrapper">
+                <table></table>
+            </div>
         </div>
 
         <script>
