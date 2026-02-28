@@ -249,7 +249,10 @@ def run(playwright):
         <title>자원일정 대시보드</title>
         <style>
             body {{ font-family: 'Pretendard', sans-serif; padding: 15px; background-color: #f8f9fa; color: #333; font-size: 11px; }}
-            
+            .container {{
+                background:#fff; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,0.08);
+                margin:30px; padding:4px 32px;
+              }}
             .header-container {{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid #34495e; padding-bottom: 10px; }}
             h2 {{ color: #2c3e50; margin: 0; font-size: 18px; }}
             .header-left {{ display: flex; align-items: baseline; gap: 10px; }}
@@ -369,38 +372,40 @@ def run(playwright):
             window.pageVersion = "ver.2026.3.2.01";
         </script>
         <script src="https://etech-symantec.github.io/header.js"></script>
-        <div class="header-container">
-            <div class="header-left">
-                <h2>📅 자원 일정 대시보드</h2>
-                <span class="sync-time">Update: {kst_now_str}</span>
-            </div>
-            <div class="nav-top">
-                <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
-                <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
-            </div>
-        </div>
 
-        <div id="timeline-container">
-            <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
-            <div id="timeline-chart">
+        <div class="container">
+            <div class="header-container">
+                <div class="header-left">
+                    <span class="sync-time">Update: {kst_now_str}</span>
                 </div>
-        </div>
-
-        <div class="summary-box">
-            <div class="summary-header">
-                <h3>🔥 선택된 팀의 오늘 일정</h3>
-                <div class="btn-group">
-                    <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
-                    <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
-                    <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
-                    <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
+                <div class="nav-top">
+                    <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
+                    <a href="https://etech-symantec.github.io/calendar/resource.html" class="nav-link link-resource">🚀 자원일정</a>
                 </div>
             </div>
-            <ul id="today-list"><li>데이터 로딩 중...</li></ul>
-        </div>
-        
-        <div class="table-container" id="wrapper">
-            <table></table>
+    
+            <div id="timeline-container">
+                <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
+                <div id="timeline-chart">
+                    </div>
+            </div>
+    
+            <div class="summary-box">
+                <div class="summary-header">
+                    <h3>🔥 선택된 팀의 오늘 일정</h3>
+                    <div class="btn-group">
+                        <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
+                        <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
+                        <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
+                        <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
+                    </div>
+                </div>
+                <ul id="today-list"><li>데이터 로딩 중...</li></ul>
+            </div>
+            
+            <div class="table-container" id="wrapper">
+                <table></table>
+            </div>
         </div>
 
         <script>
