@@ -294,6 +294,12 @@ def run(playwright):
             .hidden-row {{ display: none !important; }}
             .hidden-cell {{ display: none !important; }}
 
+            /* 🌟 [수정됨] 타임라인 헤더 (날짜 이동 버튼) 스타일 */
+            .timeline-header {{ display: flex; justify-content: flex-start; align-items: center; gap: 15px; margin-bottom: 5px; }}
+            .date-nav-btn {{ background: #fff; border: 1px solid #d1d5db; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; color: #4b5563; transition: 0.2s; }}
+            .date-nav-btn:hover {{ background: #f3f4f6; color: #1f2937; }}
+            .timeline-date-display {{ font-size: 14px; font-weight: bold; color: #1f2937; margin: 0; }}
+
             /* 타임라인 스타일 */
             #timeline-container {{ background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }}
             #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; }}
@@ -385,9 +391,12 @@ def run(playwright):
             </div>
     
             <div id="timeline-container">
-                <h3>📅 오늘 전체 일정 타임라인 (09:00 ~ 18:00)</h3>
-                <div id="timeline-chart">
-                    </div>
+               <div class="timeline-header">
+                    <button class="date-nav-btn" onclick="changeTimelineDate(-1)">◀ 어제</button>
+                    <h3 id="timeline-date-display" class="timeline-date-display">📅 타임라인 로딩 중...</h3>
+                    <button class="date-nav-btn" onclick="changeTimelineDate(1)">내일 ▶</button>
+                </div>
+                <div id="timeline-chart"></div>
             </div>
     
             <div class="summary-box">
@@ -414,6 +423,9 @@ def run(playwright):
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
+
+            // 🌟 [추가됨] 현재 타임라인이 보여주는 날짜 변수
+            let currentTimelineDate = new Date();
 
             document.addEventListener("DOMContentLoaded", function() {{
                 renderTable();
@@ -526,11 +538,31 @@ def run(playwright):
                 if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }}
 
+            // 🌟 [추가됨] 버튼 클릭 시 날짜 변경 함수
+            function changeTimelineDate(offset) {{
+                currentTimelineDate.setDate(currentTimelineDate.getDate() + offset);
+                renderTimeline();
+            }}
+
             function renderTimeline() {{
                 const timelineChart = document.getElementById('timeline-chart');
-                const today = new Date();
-                const tM = today.getMonth() + 1;
-                const tD = today.getDate();
+                timelineChart.innerHTML = ''; // 🌟 차트 초기화 (다시 그리기 위함)
+
+                // 🌟 현재 선택된 타임라인 날짜 가져오기
+                const tY = currentTimelineDate.getFullYear();
+                const tM = currentTimelineDate.getMonth() + 1;
+                const tD = currentTimelineDate.getDate();
+                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const tDayStr = days[currentTimelineDate.getDay()];
+
+                // 🌟 제목 업데이트 (오늘인지 아닌지 판별)
+                const actualToday = new Date();
+                const isActuallyToday = (tY === actualToday.getFullYear() && tM === actualToday.getMonth() + 1 && tD === actualToday.getDate());
+                const titlePrefix = isActuallyToday ? "오늘 " : "";
+                
+                const dateDisplay = document.getElementById('timeline-date-display');
+                dateDisplay.innerText = `📅 ${{titlePrefix}}전체 일정 타임라인 (${{tM}}/${{tD}} ${{tDayStr}})`;
+
                 let todayEvents = [];
 
                 if (gridData) {{
@@ -538,14 +570,15 @@ def run(playwright):
                         if (idx === 0) return; 
                         const dateText = row[0].text;
                         const nums = dateText.match(/\\d+/g);
-                        let isToday = false;
+                        let isTargetDate = false;
                         if (nums && nums.length >= 2) {{
                             let m = parseInt(nums[0]), d = parseInt(nums[1]);
                             if (nums.length >= 3 && parseInt(nums[0]) > 2000) {{ m = parseInt(nums[1]); d = parseInt(nums[2]); }}
-                            isToday = (m === tM && d === tD);
+                            // 🌟 선택된 날짜와 일치하는지 확인
+                            isTargetDate = (m === tM && d === tD);
                         }}
 
-                        if (isToday) {{
+                        if (isTargetDate) {{
                             let timeText = row[1] ? row[1].text : ""; 
                             let startTimeStr = "09:00", endTimeStr = "18:00";
                             
@@ -607,27 +640,29 @@ def run(playwright):
                     }}
                 }}
 
-                // 🌟 현재 시간 표시 (09~18시 사이일 때만)
-                const now = new Date();
-                const curH = now.getHours();
-                const curM = now.getMinutes();
-                const curTotalMin = curH * 60 + curM;
-                const startTotalMin = startHour * 60;
-                const endTotalMin = endHour * 60;
+                // 현재 시간 표시 (선택된 날짜가 '오늘'이고, 09~18시 사이일 때만)
+                if (isActuallyToday) {{
+                    const now = new Date();
+                    const curH = now.getHours();
+                    const curM = now.getMinutes();
+                    const curTotalMin = curH * 60 + curM;
+                    const startTotalMin = startHour * 60;
+                    const endTotalMin = endHour * 60;
 
-                if (curTotalMin >= startTotalMin && curTotalMin <= endTotalMin) {{
-                    const nowPos = ((curTotalMin - startTotalMin) / totalMinutes) * 100;
-                    const nowLine = document.createElement('div');
-                    nowLine.className = 'timeline-now-line';
-                    nowLine.style.left = `${{nowPos}}%`;
-                    
-                    const nowLabel = document.createElement('div');
-                    nowLabel.className = 'timeline-now-label';
-                    nowLabel.innerText = "Now";
-                    nowLabel.style.left = `${{nowPos}}%`;
+                    if (curTotalMin >= startTotalMin && curTotalMin <= endTotalMin) {{
+                        const nowPos = ((curTotalMin - startTotalMin) / totalMinutes) * 100;
+                        const nowLine = document.createElement('div');
+                        nowLine.className = 'timeline-now-line';
+                        nowLine.style.left = `${{nowPos}}%`;
+                        
+                        const nowLabel = document.createElement('div');
+                        nowLabel.className = 'timeline-now-label';
+                        nowLabel.innerText = "Now";
+                        nowLabel.style.left = `${{nowPos}}%`;
 
-                    timelineChart.appendChild(nowLine);
-                    timelineChart.appendChild(nowLabel);
+                        timelineChart.appendChild(nowLine);
+                        timelineChart.appendChild(nowLabel);
+                    }}
                 }}
 
                 todayEvents.sort((a, b) => a.start - b.start);
