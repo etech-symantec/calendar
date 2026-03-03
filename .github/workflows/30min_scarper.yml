@@ -19,7 +19,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 🌟 [여기가 추가된 부분입니다] pip 및 브라우저 캐싱
+      - name: 2-1. 한글 폰트 설치 (글씨 깨짐 방지)
+        run: sudo apt-get update && sudo apt-get install -y fonts-nanum
+
+      # pip 및 브라우저 캐싱
       - name: 3. 패키지 및 브라우저 다운로드 캐시
         uses: actions/cache@v4
         with:
