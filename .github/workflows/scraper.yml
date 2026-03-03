@@ -40,3 +40,19 @@ jobs:
           # 변경 사항이 없을 경우 에러가 나지 않도록 예외 처리
           git commit -m "Auto-update: 최신 테이블 데이터 갱신" || echo "No changes to commit"
           git push
+
+      - name: 6. 변경된 HTML 파일 커밋 및 푸시
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add resource.html
+          git commit -m "Auto-update: 최신 테이블 데이터 갱신" || echo "No changes to commit"
+          git push
+
+      # 🌟 [여기를 추가해주세요] 에러 발생 시 캡처된 이미지를 다운로드할 수 있게 해줍니다.
+      - name: 7. 디버깅용 스크린샷 업로드 (에러 확인용)
+        if: always() # 스크립트가 에러로 멈춰도 무조건 실행됨
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: '*.png'
