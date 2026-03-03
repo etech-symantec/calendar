@@ -67,10 +67,16 @@ def run(playwright):
     # ------------------------------------------------------------------
     print("2. Clicking top '일정' (Schedule) menu...")
     try:
-        page.click('#topMenu300000000', timeout=20000)
+        page.click('#topMenu300000000', timeout=10000)
     except Exception as e:
         print(f"[DEBUG] ID click failed, trying text: {e}")
-        page.locator('text="일정"').first.click(timeout=20000)
+        try:
+            page.locator('text="일정"').first.click(timeout=15000, force=True)
+        except Exception as e2:
+            # 🌟 5. 최종 실패 시 에러 화면 캡처
+            page.screenshot(path="debug_error.png", full_page=True)
+            print("📸 [ERROR] 메뉴 클릭 실패! 에러 화면이 debug_error.png로 캡처되었습니다.")
+            raise e2
     
     page.wait_for_load_state('networkidle')
     time.sleep(3)
