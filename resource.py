@@ -41,6 +41,27 @@ def run(playwright):
     page.wait_for_load_state('networkidle')
     time.sleep(3)
 
+    # 🌟 1. [추가됨] 브라우저 기본 경고창(Alert/Confirm)이 뜨면 무조건 '확인' 처리
+    page.on("dialog", lambda dialog: dialog.accept())
+
+    # 🌟 2. [추가됨] 사내 공지사항 등 HTML 레이어 팝업 닫기 시도
+    print("[DEBUG] 팝업 창 유무를 확인하고 닫기를 시도합니다...")
+    try:
+        # ESC 키를 눌러서 닫히는 팝업 처리
+        page.keyboard.press("Escape")
+        time.sleep(1)
+        
+        # 흔히 쓰이는 닫기 버튼 텍스트를 찾아 클릭 (없으면 바로 넘어감)
+        close_texts = ["닫기", "오늘 하루 보지 않기", "오늘 하루 이 창을 열지 않음", "확인", "취소", "Close", "X"]
+        for txt in close_texts:
+            close_btn = page.locator(f'text="{txt}"')
+            if close_btn.count() > 0:
+                close_btn.first.click(timeout=2000, force=True)
+                print(f"[DEBUG] '{txt}' 버튼을 클릭하여 팝업을 닫았습니다.")
+                time.sleep(1)
+    except Exception as e:
+        print("[DEBUG] 팝업 닫기 중 예외 발생 (무시하고 진행):", e)
+
     # ------------------------------------------------------------------
     # 2. 상단 '일정' 메뉴 클릭
     # ------------------------------------------------------------------
