@@ -311,8 +311,8 @@ def run(playwright):
             .btn-green {{ background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }}
             .btn-green.active, .btn-green:hover {{ background-color: #22c55e; color: white; }}
             
-            .btn-red {{ background-color: #F9DFDF; color: #166534; border: 1px solid #bbf7d0; }}
-            .btn-red.active, .btn-green:hover {{ background-color: #F5AFAF; color: white; }}
+            .btn-red {{ background-color: #FBEFEF; color: #c53030; border: 1px solid #fca5a5; }}
+            .btn-red.active, .btn-red:hover {{ background-color: #ef4444; color: white; }}
 
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #F5AFAF; }}
             .btn-all.active, .btn-all:hover {{ background-color: #FF7070; color: white; }}
@@ -468,7 +468,7 @@ def run(playwright):
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
-            const red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"];
+            const redteam = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"];
 
             // 🌟 [추가됨] 현재 타임라인이 보여주는 날짜 변수
             let currentTimelineDate = new Date();
