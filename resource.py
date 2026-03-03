@@ -148,6 +148,7 @@ def run(playwright):
     today_blue_events = []
     today_yellow_events = []
     today_green_events = []
+    today_red_events = []
     final_grid_data = [] 
     
     try:
@@ -215,6 +216,7 @@ def run(playwright):
             blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
             yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
             green_team = ["김준엽", "이학주", "현태화", "곽진수", "이창환"]
+            red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"]
             
             print(f"[DEBUG] Processed {len(grid)} rows in Python.")
             
@@ -249,6 +251,10 @@ def run(playwright):
                     if any(member in name_txt for member in green_team):
                         if title_txt and title_txt not in today_green_events:
                             today_green_events.append(title_txt)
+                    
+                    if any(member in name_txt for member in red_team):
+                        if title_txt and title_txt not in today_red_events:
+                            today_red_events.append(title_txt)
 
         else:
             print("[ERROR] Table not found for data extraction.")
@@ -256,7 +262,7 @@ def run(playwright):
     except Exception as e:
         print(f"[ERROR] Python calculation failed: {e}")
 
-    print(f"[DEBUG] Blue: {len(today_blue_events)}, Yellow: {len(today_yellow_events)}, Green: {len(today_green_events)}")
+    print(f"[DEBUG] Blue: {len(today_blue_events)}, Yellow: {len(today_yellow_events)}, Green: {len(today_green_events)}, Red: {len(today_red_events)}")
 
     # ------------------------------------------------------------------
     # 7. Create resource.html
@@ -304,9 +310,12 @@ def run(playwright):
             
             .btn-green {{ background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }}
             .btn-green.active, .btn-green:hover {{ background-color: #22c55e; color: white; }}
+            
+            .btn-red {{ background-color: #F9DFDF; color: #166534; border: 1px solid #bbf7d0; }}
+            .btn-red.active, .btn-green:hover {{ background-color: #F5AFAF; color: white; }}
 
-            .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
-            .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
+            .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #F5AFAF; }}
+            .btn-all.active, .btn-all:hover {{ background-color: #FF7070; color: white; }}
             
             /* 선택된 팀의 오늘 일정 박스 스타일 */
             .summary-box {{ background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
@@ -396,6 +405,14 @@ def run(playwright):
                 font-weight: bold !important; 
             }}
             .timeline-event-bar.green:hover {{ background-color: #f0fdf4 !important; }}
+            .timeline-event-bar.red {{ 
+                background-color: #FBEFEF !important; 
+                border-color: #F9DFDF !important; 
+                color: #F5AFAF !important; 
+                font-size: 12px !important; 
+                font-weight: bold !important; 
+            }}
+            .timeline-event-bar.red:hover {{ background-color: #F9DFDF !important; }}
         </style>
     </head>
     <body>
@@ -433,6 +450,7 @@ def run(playwright):
                         <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
                         <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
                         <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
+                        <button class="btn btn-red" onclick="applyFilter('red')">🔴 영업팀</button>
                         <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
                     </div>
                 </div>
@@ -450,6 +468,7 @@ def run(playwright):
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
+            const red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"];
 
             // 🌟 [추가됨] 현재 타임라인이 보여주는 날짜 변수
             let currentTimelineDate = new Date();
@@ -509,6 +528,7 @@ def run(playwright):
                     if(team === 'blue' && blueTeam.some(m => name.includes(m))) isVisible = true;
                     if(team === 'yellow' && yellowTeam.some(m => name.includes(m))) isVisible = true;
                     if(team === 'green' && greenTeam.some(m => name.includes(m))) isVisible = true;
+                    if(team === 'red' && redTeam.some(m => name.includes(m))) isVisible = true;
 
                     if(isVisible) {{
                         r.classList.remove('hidden-row');
@@ -719,6 +739,8 @@ def run(playwright):
                         bar.classList.add('yellow');
                     }} else if (greenTeam.some(m => event.name.includes(m))) {{
                         bar.classList.add('green');
+                    }} else if (redTeam.some(m => event.name.includes(m))) {{
+                        bar.classList.add('red');
                     }}
 
                     // 🌟 [추가됨] 차량 (진한 회색)
