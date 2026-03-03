@@ -39,9 +39,12 @@
             
             .btn-green { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
             .btn-green.active, .btn-green:hover { background-color: #22c55e; color: white; }
+            
+            .btn-red { background-color: #F9DFDF; color: #166534; border: 1px solid #bbf7d0; }
+            .btn-red.active, .btn-green:hover { background-color: #F5AFAF; color: white; }
 
-            .btn-all { background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
-            .btn-all.active, .btn-all:hover { background-color: #6b7280; color: white; }
+            .btn-all { background-color: #f3f4f6; color: #4b5563; border: 1px solid #F5AFAF; }
+            .btn-all.active, .btn-all:hover { background-color: #FF7070; color: white; }
             
             /* 선택된 팀의 오늘 일정 박스 스타일 */
             .summary-box { background: #fff; border-left: 4px solid #e11d48; padding: 12px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -131,6 +134,14 @@
                 font-weight: bold !important; 
             }
             .timeline-event-bar.green:hover { background-color: #f0fdf4 !important; }
+            .timeline-event-bar.red { 
+                background-color: #FBEFEF !important; 
+                border-color: #F9DFDF !important; 
+                color: #F5AFAF !important; 
+                font-size: 12px !important; 
+                font-weight: bold !important; 
+            }
+            .timeline-event-bar.red:hover { background-color: #F9DFDF !important; }
         </style>
     </head>
     <body>
@@ -144,7 +155,7 @@
         <div class="container">
             <div class="header-container">
                 <div class="header-left">
-                    <span class="sync-time">Update: 2026-03-03 16:42:38</span>
+                    <span class="sync-time">Update: 2026-03-03 16:53:22</span>
                 </div>
                 <div class="nav-top">
                     <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
@@ -168,6 +179,7 @@
                         <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
                         <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
                         <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
+                        <button class="btn btn-red" onclick="applyFilter('red')">🔴 영업팀</button>
                         <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
                     </div>
                 </div>
@@ -185,6 +197,7 @@
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
+            const red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"];
 
             // 🌟 [추가됨] 현재 타임라인이 보여주는 날짜 변수
             let currentTimelineDate = new Date();
@@ -244,6 +257,7 @@
                     if(team === 'blue' && blueTeam.some(m => name.includes(m))) isVisible = true;
                     if(team === 'yellow' && yellowTeam.some(m => name.includes(m))) isVisible = true;
                     if(team === 'green' && greenTeam.some(m => name.includes(m))) isVisible = true;
+                    if(team === 'red' && redTeam.some(m => name.includes(m))) isVisible = true;
 
                     if(isVisible) {
                         r.classList.remove('hidden-row');
@@ -454,6 +468,8 @@
                         bar.classList.add('yellow');
                     } else if (greenTeam.some(m => event.name.includes(m))) {
                         bar.classList.add('green');
+                    } else if (redTeam.some(m => event.name.includes(m))) {
+                        bar.classList.add('red');
                     }
 
                     // 🌟 [추가됨] 차량 (진한 회색)
