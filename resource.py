@@ -416,8 +416,7 @@ def run(playwright):
             .minimap-grid .room.empty {{ border: none; background: transparent; }}
             .minimap-grid .room.highlight {{ background: #3b82f6; color: #fff; font-weight: bold; border-color: #2563eb; box-shadow: 0 0 8px rgba(59, 130, 246, 0.6); transform: scale(1.08); z-index: 10; }}
 			/* 🌟 방 요소 공통 스타일 */
-			.room {
-				/* 기존 스타일 (테두리, 정렬 등) */
+			.room {{
 				border: 1px solid #ccc;
 				background-color: #fff;
 				display: flex;
@@ -425,56 +424,56 @@ def run(playwright):
 				justify-content: center;
 				text-align: center;
 				font-size: 12px;
-			}
+			}}
 
-			.room.empty {
+			.room.empty {{
 				/* 기존 빈 방 스타일 (테두리 없애기 등) */
 				border: none;
 				background-color: transparent;
-			}
+			}}
 
 			/* 🌟 개별 회의실 위치 지정: 다이어그램의 레이아웃을 참고하여 grid-column 및 grid-row 설정 */
 			/* 🌟 grid-column-start / grid-column-end 형식을 사용하거나 축약형 grid-column: start / end 사용 */
 			/* 🌟 grid-row-start / grid-row-end 형식을 사용하거나 축약형 grid-row: start / end 사용 */
 
 			/* 🌟 17층 회의실 */
-			#room-1701 { grid-column: 2; grid-row: 1; }
-			#room-1702 { grid-column: 2; grid-row: 2; }
-			#room-1703 { grid-column: 2; grid-row: 3; }
-			#room-1704 { grid-column: 1; grid-row: 3; }
-			#room-1705 { grid-column: 1; grid-row: 2; }
-			#room-1706 { grid-column: 1; grid-row: 1; }
+			#room-1701 {{ grid-column: 2; grid-row: 1; }}
+			#room-1702 {{ grid-column: 2; grid-row: 2; }}
+			#room-1703 {{ grid-column: 2; grid-row: 3; }}
+			#room-1704 {{ grid-column: 1; grid-row: 3; }}
+			#room-1705 {{ grid-column: 1; grid-row: 2; }}
+			#room-1706 {{ grid-column: 1; grid-row: 1; }}
 
 			/* 🌟 18층 회의실 */
-			#room-1801 { grid-column: 5; grid-row: 1; }
-			#room-1802 { grid-column: 6; grid-row: 1; }
-			#room-1803 { grid-column: 6; grid-row: 2; }
-			#room-1804 { grid-column: 6; grid-row: 3; }
-			#room-1805 { grid-column: 5; grid-row: 3; }
-			#room-1806 { grid-column: 5; grid-row: 2; }
-			#room-1807 { grid-column: 4; grid-row: 1; }
+			#room-1801 {{ grid-column: 5; grid-row: 1; }}
+			#room-1802 {{ grid-column: 6; grid-row: 1; }}
+			#room-1803 {{ grid-column: 6; grid-row: 2; }}
+			#room-1804 {{ grid-column: 6; grid-row: 3; }}
+			#room-1805 {{ grid-column: 5; grid-row: 3; }}
+			#room-1806 {{ grid-column: 5; grid-row: 2; }}
+			#room-1807 {{ grid-column: 4; grid-row: 1; }}
 
 			/* 🌟 요청사항 반영: 아랫부분 영역 스타일 */
 			/* 🌟 1. 화장실 스타일 정의 */
-			.room.restroom {
+			.room.restroom {{
 				grid-column: 1 / 3; /* 가로로 1열부터 3열 전까지 차지 (2칸) */
 				grid-row: 4; /* 4행에 배치 */
 				background-color: #ddd; /* 화장실 배경색 */
-			}
+			}}
 
 			/* 🌟 2. 가로로 늘어날 가장 아래 방(1801 연장) 스타일 정의 */
-			#room-1801-extension {
+			#room-1801-extension {{
 				grid-column: 3 / 6; /* 가로로 3열부터 6열 전까지 차지 (3칸) */
 				grid-row: 4; /* 4행에 배치 */
 				background-color: #a0d8f1; /* 방 배경색 */
-			}
+			}}
 
 			/* 🌟 3. 입구 스타일 정의 */
-			.room.entrance {
+			.room.entrance {{
 				grid-column: 6; /* 6열에 배치 */
 				grid-row: 4; /* 4행에 배치 */
 				background-color: #f9e1a9; /* 입구 배경색 */
-			}
+			}}
         </style>
     </head>
     <body>
