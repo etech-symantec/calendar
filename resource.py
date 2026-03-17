@@ -399,81 +399,10 @@ def run(playwright):
             /* 🌟 [추가됨] 미니맵 툴팁 스타일 (회의실 이미지 기반 순수 CSS 구현) */
             .minimap-tooltip {{ position: fixed; background: #f8f9fa; border: 2px solid #cbd5e1; box-shadow: 0 10px 25px rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; z-index: 99999; display: none; pointer-events: none; }}
             .minimap-title {{ font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }}
-            /* 🌟 미니맵 그리드 스타일 정의 */
-			.minimap-grid {
-				display: grid;
-				/* 🌟 열(Column) 트랙 정의: 다이어그램의 트랙을 참고하여 각 열의 너비 비율 설정 */
-				/* 🌟 스크린샷 비율을 고려하여 설정 (예: 6열 구성) */
-				grid-template-columns: 1fr 1fr 0.8fr 1.2fr 1fr 1fr;
-				/* 🌟 행(Row) 트랙 정의: 다이어그램의 트랙을 참고하여 각 행의 높이 설정 */
-				/* 🌟 필요에 따라 행의 높이를 고정(px) 또는 비율(fr)로 설정 */
-				grid-auto-rows: minmax(50px, auto); /* 기본 행 높이 설정 */
-				gap: 2px; /* 방들 사이의 간격 */
-				padding: 10px;
-				background-color: #f0f0f0; /* 도면 배경색 */
-			}
+            .minimap-grid {{ display: grid; grid-template-columns: 60px 60px 20px 60px 60px; grid-template-rows: repeat(4, auto); gap: 6px; }}
             .minimap-grid .room {{ border: 1.5px solid #475569; text-align: center; font-size: 10px; padding: 6px 2px; border-radius: 3px; background: #fff; color: #1e293b; display: flex; flex-direction: column; justify-content: center; line-height: 1.2; transition: all 0.15s ease-in-out; }}
             .minimap-grid .room.empty {{ border: none; background: transparent; }}
             .minimap-grid .room.highlight {{ background: #3b82f6; color: #fff; font-weight: bold; border-color: #2563eb; box-shadow: 0 0 8px rgba(59, 130, 246, 0.6); transform: scale(1.08); z-index: 10; }}
-			/* 🌟 방 요소 공통 스타일 */
-			.room {{
-				border: 1px solid #ccc;
-				background-color: #fff;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				text-align: center;
-				font-size: 12px;
-			}}
-
-			.room.empty {{
-				/* 기존 빈 방 스타일 (테두리 없애기 등) */
-				border: none;
-				background-color: transparent;
-			}}
-
-			/* 🌟 개별 회의실 위치 지정: 다이어그램의 레이아웃을 참고하여 grid-column 및 grid-row 설정 */
-			/* 🌟 grid-column-start / grid-column-end 형식을 사용하거나 축약형 grid-column: start / end 사용 */
-			/* 🌟 grid-row-start / grid-row-end 형식을 사용하거나 축약형 grid-row: start / end 사용 */
-
-			/* 🌟 17층 회의실 */
-			#room-1701 {{ grid-column: 2; grid-row: 1; }}
-			#room-1702 {{ grid-column: 2; grid-row: 2; }}
-			#room-1703 {{ grid-column: 2; grid-row: 3; }}
-			#room-1704 {{ grid-column: 1; grid-row: 3; }}
-			#room-1705 {{ grid-column: 1; grid-row: 2; }}
-			#room-1706 {{ grid-column: 1; grid-row: 1; }}
-
-			/* 🌟 18층 회의실 */
-			#room-1801 {{ grid-column: 5; grid-row: 1; }}
-			#room-1802 {{ grid-column: 6; grid-row: 1; }}
-			#room-1803 {{ grid-column: 6; grid-row: 2; }}
-			#room-1804 {{ grid-column: 6; grid-row: 3; }}
-			#room-1805 {{ grid-column: 5; grid-row: 3; }}
-			#room-1806 {{ grid-column: 5; grid-row: 2; }}
-			#room-1807 {{ grid-column: 4; grid-row: 1; }}
-
-			/* 🌟 요청사항 반영: 아랫부분 영역 스타일 */
-			/* 🌟 1. 화장실 스타일 정의 */
-			.room.restroom {{
-				grid-column: 1 / 3; /* 가로로 1열부터 3열 전까지 차지 (2칸) */
-				grid-row: 4; /* 4행에 배치 */
-				background-color: #ddd; /* 화장실 배경색 */
-			}}
-
-			/* 🌟 2. 가로로 늘어날 가장 아래 방(1801 연장) 스타일 정의 */
-			#room-1801-extension {{
-				grid-column: 3 / 6; /* 가로로 3열부터 6열 전까지 차지 (3칸) */
-				grid-row: 4; /* 4행에 배치 */
-				background-color: #a0d8f1; /* 방 배경색 */
-			}}
-
-			/* 🌟 3. 입구 스타일 정의 */
-			.room.entrance {{
-				grid-column: 6; /* 6열에 배치 */
-				grid-row: 4; /* 4행에 배치 */
-				background-color: #f9e1a9; /* 입구 배경색 */
-			}}
         </style>
     </head>
     <body>
@@ -525,41 +454,37 @@ def run(playwright):
         </div>
 
         <div id="minimap-tooltip" class="minimap-tooltip">
-			<div class="minimap-title">📍 회의실 위치</div>
-			<div class="minimap-grid">
-				<div class="room empty"></div>
-				<div class="room empty"></div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1801">1801<br>마들렌</div>
-				<div class="room empty"></div>
+            <div class="minimap-title">📍 회의실 위치</div>
+            <div class="minimap-grid">
+		<div class="room empty"></div>
+                <div class="room empty"></div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1801">1801<br>마들렌</div>
+                <div class="room empty"></div>
 
-				<div class="room" id="room-1706">1706<br>바클라바</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1701">1701<br>마카롱</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1807">1807<br>퀸아망</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1802">1802<br>스콘</div>
-				
-				<div class="room" id="room-1705">1705<br>파르페</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1702">1702<br>도넛</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1806">1806<br>다쿠아즈</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1803">1803<br>까눌레</div>
-				
-				<div class="room" id="room-1704">1704<br>푸딩</div>
-				<div class="room" id="room-1703">1703<br>에끌레어</div>
-				<div class="room empty"></div>
-				<div class="room" id="room-1805">1805<br>와플</div>
-				<div class="room" id="room-1804">1804<br>휘낭시에</div>
-
-				<div class="room empty restroom">화장실</div>
-				<div class="room" id="room-1801-extension">1801-연장</div>
-				<div class="room entrance">입구</div>
-			</div>
-		</div>
+                <div class="room" id="room-1706">1706<br>바클라바</div>
+                <div class="room empty"></div>
+		<div class="room" id="room-1701">1701<br>마카롱</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1807">1807<br>퀸아망</div>
+                <div class="room empty"></div>
+		<div class="room" id="room-1802">1802<br>스콘</div>
+                
+                <div class="room" id="room-1705">1705<br>파르페</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1702">1702<br>도넛</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1806">1806<br>다쿠아즈</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1803">1803<br>까눌레</div>
+                
+                <div class="room" id="room-1704">1704<br>푸딩</div>
+                <div class="room" id="room-1703">1703<br>에끌레어</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1805">1805<br>와플</div>
+                <div class="room" id="room-1804">1804<br>휘낭시에</div>
+            </div>
+        </div>
 
         <script>
             const gridData = {json_grid_data}; 
