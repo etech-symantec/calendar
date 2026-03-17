@@ -505,6 +505,26 @@ def run(playwright):
             </div>
         </div>
 
+        <div id="siesta-minimap-tooltip" class="minimap-tooltip">
+            <div class="minimap-title">📍 시에스타 위치</div>
+            <div class="minimap-wrapper">
+                <div class="floor-section">
+                    <div class="floor-title">21층</div>
+                    <div class="minimap-grid" style="grid-template-columns: 75px 75px; grid-template-rows: 75px 75px 75px 20px;">
+                        <div class="room" id="siesta-6" style="grid-column: 1; grid-row: 1; font-size: 14px;">시에스타<br>6</div>
+                        <div class="room" id="siesta-5" style="grid-column: 1; grid-row: 2; font-size: 14px;">시에스타<br>5</div>
+                        <div class="room" id="siesta-4" style="grid-column: 1; grid-row: 3; font-size: 14px;">시에스타<br>4</div>
+                        
+                        <div class="room" id="siesta-3" style="grid-column: 2; grid-row: 1; font-size: 14px;">시에스타<br>3</div>
+                        <div class="room" id="siesta-2" style="grid-column: 2; grid-row: 2; font-size: 14px;">시에스타<br>2</div>
+                        <div class="room" id="siesta-1" style="grid-column: 2; grid-row: 3; font-size: 14px;">시에스타<br>1</div>
+                        
+                        <div class="room entrance" style="grid-column: 2; grid-row: 4; justify-self: end; width: 60px; height: 20px;">입구</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script>
             const gridData = {json_grid_data}; 
             
@@ -815,23 +835,45 @@ def run(playwright):
                     // 💡 타임라인 바: [자원명] [예약명]
                     bar.innerText = `[${{event.resource}}] ${{event.title}}`;
                     bar.title = `[${{event.name}}] ${{event.title}} (${{event.timeStr}})`; 
+                    // 🌟 [수정됨] 시에스타 매핑 데이터 추가
+                    const siestaKeys = ["시에스타 1", "시에스타 2", "시에스타 3", "시에스타 4", "시에스타 5", "시에스타 6", "시에스타1", "시에스타2", "시에스타3", "시에스타4", "시에스타5", "시에스타6"];
+                    const siestaIds = ["1", "2", "3", "4", "5", "6", "1", "2", "3", "4", "5", "6"];
 
-                    // 🌟 [추가됨] 미니맵 마우스 이벤트 바인딩
+                    // 🌟 [수정됨] 미니맵 마우스 이벤트 (일반 회의실 vs 시에스타 구분)
                     bar.addEventListener('mouseenter', (e) => {{
                         let targetId = null;
-                        for(let i=0; i<roomKeys.length; i++) {{
-                            if(event.resource.includes(roomKeys[i]) || event.title.includes(roomKeys[i])) {{
-                                targetId = "room-" + roomIds[i];
-                                break;
+                        let isSiesta = false;
+
+                        // 1. 시에스타인지 먼저 확인
+                        if(event.resource.includes("시에스타") || event.title.includes("시에스타")) {{
+                            isSiesta = true;
+                            for(let i=0; i<siestaKeys.length; i++) {{
+                                if(event.resource.includes(siestaKeys[i]) || event.title.includes(siestaKeys[i])) {{
+                                    targetId = "siesta-" + siestaIds[i];
+                                    break;
+                                }}
+                            }}
+                        }} else {{
+                            // 2. 일반 회의실인지 확인
+                            for(let i=0; i<roomKeys.length; i++) {{
+                                if(event.resource.includes(roomKeys[i]) || event.title.includes(roomKeys[i])) {{
+                                    targetId = "room-" + roomIds[i];
+                                    break;
+                                }}
                             }}
                         }}
 
-                        if(targetId) {{
+                        // 둘 중 하나라도 해당되면 툴팁 표시
+                        if(targetId || isSiesta) {{
                             document.querySelectorAll('.minimap-grid .room').forEach(el => el.classList.remove('highlight'));
-                            const targetEl = document.getElementById(targetId);
-                            if(targetEl) targetEl.classList.add('highlight');
+                            
+                            if(targetId) {{
+                                const targetEl = document.getElementById(targetId);
+                                if(targetEl) targetEl.classList.add('highlight');
+                            }}
 
-                            const tooltip = document.getElementById('minimap-tooltip');
+                            // 일반/시에스타에 맞춰 툴팁창 선택
+                            const tooltip = isSiesta ? document.getElementById('siesta-minimap-tooltip') : document.getElementById('minimap-tooltip');
                             tooltip.style.display = 'block';
                             
                             let x = e.clientX + 15;
@@ -845,19 +887,26 @@ def run(playwright):
                     }});
 
                     bar.addEventListener('mousemove', (e) => {{
-                        const tooltip = document.getElementById('minimap-tooltip');
-                        if(tooltip.style.display === 'block') {{
+                        const confTooltip = document.getElementById('minimap-tooltip');
+                        const siestaTooltip = document.getElementById('siesta-minimap-tooltip');
+                        let activeTooltip = null;
+                        
+                        if (confTooltip.style.display === 'block') activeTooltip = confTooltip;
+                        else if (siestaTooltip.style.display === 'block') activeTooltip = siestaTooltip;
+
+                        if(activeTooltip) {{
                             let x = e.clientX + 15;
                             let y = e.clientY + 15;
-                            if (x + tooltip.offsetWidth > window.innerWidth) x = e.clientX - tooltip.offsetWidth - 10;
-                            if (y + tooltip.offsetHeight > window.innerHeight) y = e.clientY - tooltip.offsetHeight - 10;
-                            tooltip.style.left = x + 'px';
-                            tooltip.style.top = y + 'px';
+                            if (x + activeTooltip.offsetWidth > window.innerWidth) x = e.clientX - activeTooltip.offsetWidth - 10;
+                            if (y + activeTooltip.offsetHeight > window.innerHeight) y = e.clientY - activeTooltip.offsetHeight - 10;
+                            activeTooltip.style.left = x + 'px';
+                            activeTooltip.style.top = y + 'px';
                         }}
                     }});
 
                     bar.addEventListener('mouseleave', (e) => {{
                         document.getElementById('minimap-tooltip').style.display = 'none';
+                        document.getElementById('siesta-minimap-tooltip').style.display = 'none';
                     }});
                     
                     timelineChart.appendChild(bar);
