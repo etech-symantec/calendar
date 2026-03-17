@@ -459,6 +459,8 @@ def run(playwright):
 		<div class="room empty"></div>
                 <div class="room empty"></div>
                 <div class="room empty"></div>
+                <div class="room empty"></div>
+                <div class="room empty"></div>
                 <div class="room" id="room-1801">1801<br>마들렌</div>
                 <div class="room empty"></div>
 
