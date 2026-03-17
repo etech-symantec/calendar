@@ -335,6 +335,8 @@ def run(playwright):
             .timeline-header {{ display: flex; justify-content: flex-start; align-items: center; gap: 15px; margin-bottom: 5px; }}
             .date-nav-btn {{ background: #fff; border: 1px solid #d1d5db; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; color: #4b5563; transition: 0.2s; }}
             .date-nav-btn:hover {{ background: #f3f4f6; color: #1f2937; }}
+            .date-nav-btn.today-btn {{ background-color: #f8f9fa; border-color: #9ca3af; color: #374151; }}
+            .date-nav-btn.today-btn:hover {{ background-color: #e5e7eb; }}
             .timeline-date-display {{ font-size: 14px; font-weight: bold; color: #1f2937; margin: 0; }}
 
             /* 타임라인 스타일 */
@@ -345,30 +347,8 @@ def run(playwright):
             /* 타임라인 그리드 선 */
             .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
             .timeline-grid-line.half-hour {{ border-left: 1px dashed #e5e7eb; background-color: transparent; width: 0; }} /* 30분 점선 */
-
-            /* 🌟 [수정됨] 현재 시간 표시선 스타일 (반투명 점선) */
-            .timeline-now-line {{ 
-                position: absolute; 
-                top: 0; 
-                bottom: 0; 
-                width: 0; /* 너비를 0으로 설정하고 테두리를 사용합니다 */
-                border-left: 2px dashed rgba(239, 68, 68, 0.5); /* 50% 투명한 붉은색 점선 */
-                z-index: 20; 
-                pointer-events: none; 
-            }}
-            /* 🌟 [수정됨] 현재 시간 라벨 스타일 (라벨 배경도 약간 반투명하게 조정) */
-            .timeline-now-label {{ 
-                position: absolute; 
-                top: -20px; 
-                font-size: 10px; 
-                font-weight: bold; 
-                color: white; 
-                background-color: rgba(239, 68, 68, 0.8); /* 80% 투명한 붉은색 배경 */
-                padding: 2px 4px; 
-                border-radius: 3px; 
-                transform: translateX(-50%); 
-                z-index: 21; 
-            }}
+            .timeline-now-line {{ position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed rgba(239, 68, 68, 0.5); z-index: 20; pointer-events: none; }}
+            .timeline-now-label {{ position: absolute; top: -20px; font-size: 10px; font-weight: bold; color: white; background-color: rgba(239, 68, 68, 0.8); padding: 2px 4px; border-radius: 3px; transform: translateX(-50%); z-index: 21; }}
 
             /* 기본 막대 (회색) */
             .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
@@ -415,6 +395,14 @@ def run(playwright):
                 font-weight: bold !important; 
             }}
             .timeline-event-bar.red:hover {{ background-color: #fee2e2 !important; }}
+            
+            /* 🌟 [추가됨] 미니맵 툴팁 스타일 (회의실 이미지 기반 순수 CSS 구현) */
+            .minimap-tooltip {{ position: fixed; background: #f8f9fa; border: 2px solid #cbd5e1; box-shadow: 0 10px 25px rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; z-index: 99999; display: none; pointer-events: none; }}
+            .minimap-title {{ font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }}
+            .minimap-grid {{ display: grid; grid-template-columns: 60px 60px 20px 60px 60px; grid-template-rows: repeat(4, auto); gap: 6px; }}
+            .minimap-grid .room {{ border: 1.5px solid #475569; text-align: center; font-size: 10px; padding: 6px 2px; border-radius: 3px; background: #fff; color: #1e293b; display: flex; flex-direction: column; justify-content: center; line-height: 1.2; transition: all 0.15s ease-in-out; }}
+            .minimap-grid .room.empty {{ border: none; background: transparent; }}
+            .minimap-grid .room.highlight {{ background: #3b82f6; color: #fff; font-weight: bold; border-color: #2563eb; box-shadow: 0 0 8px rgba(59, 130, 246, 0.6); transform: scale(1.08); z-index: 10; }}
         </style>
     </head>
     <body>
@@ -462,6 +450,35 @@ def run(playwright):
             
             <div class="table-container" id="wrapper">
                 <table></table>
+            </div>
+        </div>
+
+        <div id="minimap-tooltip" class="minimap-tooltip">
+            <div class="minimap-title">📍 회의실 위치</div>
+            <div class="minimap-grid">
+                <div class="room" id="room-1703">1703<br>에끌레어</div>
+                <div class="room" id="room-1706">1706<br>바클라바</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1804">1804<br>휘낭시에</div>
+                <div class="room" id="room-1807">1807<br>퀸아망</div>
+                
+                <div class="room" id="room-1702">1702<br>도넛</div>
+                <div class="room" id="room-1705">1705<br>파르페</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1803">1803<br>까눌레</div>
+                <div class="room" id="room-1806">1806<br>다쿠아즈</div>
+                
+                <div class="room" id="room-1701">1701<br>마카롱</div>
+                <div class="room" id="room-1704">1704<br>푸딩</div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1802">1802<br>스콘</div>
+                <div class="room" id="room-1805">1805<br>와플</div>
+                
+                <div class="room empty"></div>
+                <div class="room empty"></div>
+                <div class="room empty"></div>
+                <div class="room" id="room-1801">1801<br>마들렌</div>
+                <div class="room empty"></div>
             </div>
         </div>
 
@@ -723,6 +740,10 @@ def run(playwright):
                 todayEvents.sort((a, b) => a.start - b.start);
                 const levels = []; 
 
+                // 🌟 [추가됨] 미니맵에 사용할 룸 매핑 데이터
+                const roomKeys = ["1701", "마카롱", "1702", "도넛", "1703", "에끌레어", "1704", "푸딩", "1705", "파르페", "1706", "바클라바", "1801", "마들렌", "1802", "스콘", "1803", "까눌레", "1804", "휘낭시에", "1805", "와플", "1806", "다쿠아즈", "1807", "퀸아망"];
+                const roomIds = ["1701", "1701", "1702", "1702", "1703", "1703", "1704", "1704", "1705", "1705", "1706", "1706", "1801", "1801", "1802", "1802", "1803", "1803", "1804", "1804", "1805", "1805", "1806", "1806", "1807", "1807"];
+
                 todayEvents.forEach(event => {{
                     let levelIndex = levels.findIndex(end => event.start >= end);
                     if (levelIndex === -1) {{
@@ -771,6 +792,50 @@ def run(playwright):
                     // 💡 타임라인 바: [자원명] [예약명]
                     bar.innerText = `[${{event.resource}}] ${{event.title}}`;
                     bar.title = `[${{event.name}}] ${{event.title}} (${{event.timeStr}})`; 
+
+                    // 🌟 [추가됨] 미니맵 마우스 이벤트 바인딩
+                    bar.addEventListener('mouseenter', (e) => {{
+                        let targetId = null;
+                        for(let i=0; i<roomKeys.length; i++) {{
+                            if(event.resource.includes(roomKeys[i]) || event.title.includes(roomKeys[i])) {{
+                                targetId = "room-" + roomIds[i];
+                                break;
+                            }}
+                        }}
+
+                        if(targetId) {{
+                            document.querySelectorAll('.minimap-grid .room').forEach(el => el.classList.remove('highlight'));
+                            const targetEl = document.getElementById(targetId);
+                            if(targetEl) targetEl.classList.add('highlight');
+
+                            const tooltip = document.getElementById('minimap-tooltip');
+                            tooltip.style.display = 'block';
+                            
+                            let x = e.clientX + 15;
+                            let y = e.clientY + 15;
+                            if (x + tooltip.offsetWidth > window.innerWidth) x = e.clientX - tooltip.offsetWidth - 10;
+                            if (y + tooltip.offsetHeight > window.innerHeight) y = e.clientY - tooltip.offsetHeight - 10;
+                            
+                            tooltip.style.left = x + 'px';
+                            tooltip.style.top = y + 'px';
+                        }}
+                    }});
+
+                    bar.addEventListener('mousemove', (e) => {{
+                        const tooltip = document.getElementById('minimap-tooltip');
+                        if(tooltip.style.display === 'block') {{
+                            let x = e.clientX + 15;
+                            let y = e.clientY + 15;
+                            if (x + tooltip.offsetWidth > window.innerWidth) x = e.clientX - tooltip.offsetWidth - 10;
+                            if (y + tooltip.offsetHeight > window.innerHeight) y = e.clientY - tooltip.offsetHeight - 10;
+                            tooltip.style.left = x + 'px';
+                            tooltip.style.top = y + 'px';
+                        }}
+                    }});
+
+                    bar.addEventListener('mouseleave', (e) => {{
+                        document.getElementById('minimap-tooltip').style.display = 'none';
+                    }});
                     
                     timelineChart.appendChild(bar);
                 }});
