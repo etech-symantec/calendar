@@ -396,13 +396,26 @@ def run(playwright):
             }}
             .timeline-event-bar.red:hover {{ background-color: #fee2e2 !important; }}
             
-            /* 🌟 [추가됨] 미니맵 툴팁 스타일 (회의실 이미지 기반 순수 CSS 구현) */
-            .minimap-tooltip {{ position: fixed; background: #f8f9fa; border: 2px solid #cbd5e1; box-shadow: 0 10px 25px rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; z-index: 99999; display: none; pointer-events: none; }}
-            .minimap-title {{ font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 8px; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }}
-            .minimap-grid {{ display: grid; grid-template-columns: 60px 60px 20px 60px 60px; grid-template-rows: repeat(4, auto); gap: 6px; }}
-            .minimap-grid .room {{ border: 1.5px solid #475569; text-align: center; font-size: 10px; padding: 6px 2px; border-radius: 3px; background: #fff; color: #1e293b; display: flex; flex-direction: column; justify-content: center; line-height: 1.2; transition: all 0.15s ease-in-out; }}
-            .minimap-grid .room.empty {{ border: none; background: transparent; }}
-            .minimap-grid .room.highlight {{ background: #3b82f6; color: #fff; font-weight: bold; border-color: #2563eb; box-shadow: 0 0 8px rgba(59, 130, 246, 0.6); transform: scale(1.08); z-index: 10; }}
+            /* 🌟 [수정됨] 미니맵 툴팁 스타일 (스크린샷 기반 17/18층 완벽 구현) */
+            .minimap-tooltip {{ position: fixed; background: #ffffff; border: 2px solid #cbd5e1; box-shadow: 0 10px 25px rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; z-index: 99999; display: none; pointer-events: none; }}
+            .minimap-title {{ font-size: 13px; font-weight: bold; color: #334155; margin-bottom: 15px; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }}
+            .minimap-wrapper {{ display: flex; gap: 40px; justify-content: center; }}
+            .floor-section {{ display: flex; flex-direction: column; }}
+            .floor-title {{ text-align: center; font-size: 18px; font-weight: 900; color: #000; margin-bottom: 10px; letter-spacing: 1px; }}
+            
+            /* 그리드 레이아웃: 가로(5칸), 세로(17층 4줄, 18층 5줄) */
+            .minimap-grid {{ display: grid; gap: 6px; }}
+            .minimap-grid.floor-17 {{ grid-template-columns: 25px 65px 30px 65px 25px; grid-template-rows: 20px 45px 45px 45px; }}
+            .minimap-grid.floor-18 {{ grid-template-columns: 25px 65px 30px 65px 25px; grid-template-rows: 45px 20px 45px 45px 45px; }}
+            
+            /* 회의실 기본 디자인 (검은색 테두리) */
+            .minimap-grid .room {{ border: 1.5px solid #000; text-align: center; font-size: 11px; padding: 4px; background: #fff; color: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; line-height: 1.3; transition: all 0.15s ease-in-out; }}
+            
+            /* 입구 디자인 */
+            .minimap-grid .room.entrance {{ background: #175e82; color: #fff; border: none; font-size: 10px; padding: 2px; }}
+            
+            /* 마우스 오버 시 강조 효과 */
+            .minimap-grid .room.highlight {{ background: #3b82f6 !important; color: #fff !important; font-weight: bold; border-color: #2563eb; box-shadow: 0 0 10px rgba(59, 130, 246, 0.7); transform: scale(1.08); z-index: 10; }}
         </style>
     </head>
     <body>
@@ -455,36 +468,40 @@ def run(playwright):
 
         <div id="minimap-tooltip" class="minimap-tooltip">
             <div class="minimap-title">📍 회의실 위치</div>
-            <div class="minimap-grid">
-		<div class="room empty"></div>
-                <div class="room empty"></div>
-                <div class="room empty"></div>
-                <div class="room empty"></div>
-                <div class="room empty"></div>
-                <div class="room" id="room-1801">1801<br>마들렌</div>
-                <div class="room empty"></div>
+            <div class="minimap-wrapper">
+                
+                <div class="floor-section">
+                    <div class="floor-title">17층</div>
+                    <div class="minimap-grid floor-17">
+                        <div class="room entrance" style="grid-column: 3; grid-row: 1; align-self: end; height: 16px;">입구</div>
+                        
+                        <div class="room" id="room-1706" style="grid-column: 2; grid-row: 2;">1706<br>바클라바</div>
+                        <div class="room" id="room-1705" style="grid-column: 2; grid-row: 3;">1705<br>파르페</div>
+                        <div class="room" id="room-1704" style="grid-column: 1 / 3; grid-row: 4;">1704<br>푸딩</div>
 
-                <div class="room" id="room-1706">1706<br>바클라바</div>
-                <div class="room empty"></div>
-		<div class="room" id="room-1701">1701<br>마카롱</div>
-                <div class="room empty"></div>
-                <div class="room" id="room-1807">1807<br>퀸아망</div>
-                <div class="room empty"></div>
-		<div class="room" id="room-1802">1802<br>스콘</div>
+                        <div class="room" id="room-1701" style="grid-column: 4; grid-row: 2;">1701<br>마카롱</div>
+                        <div class="room" id="room-1702" style="grid-column: 4; grid-row: 3;">1702<br>도넛</div>
+                        <div class="room" id="room-1703" style="grid-column: 4 / 6; grid-row: 4;">1703<br>에끌레어</div>
+                    </div>
+                </div>
                 
-                <div class="room" id="room-1705">1705<br>파르페</div>
-                <div class="room empty"></div>
-                <div class="room" id="room-1702">1702<br>도넛</div>
-                <div class="room empty"></div>
-                <div class="room" id="room-1806">1806<br>다쿠아즈</div>
-                <div class="room empty"></div>
-                <div class="room" id="room-1803">1803<br>까눌레</div>
-                
-                <div class="room" id="room-1704">1704<br>푸딩</div>
-                <div class="room" id="room-1703">1703<br>에끌레어</div>
-                <div class="room empty"></div>
-                <div class="room" id="room-1805">1805<br>와플</div>
-                <div class="room" id="room-1804">1804<br>휘낭시에</div>
+                <div class="floor-section">
+                    <div class="floor-title">18층</div>
+                    <div class="minimap-grid floor-18">
+                        <div class="room" id="room-1801" style="grid-column: 2 / 5; grid-row: 1; width: 85px; justify-self: center;">1801<br>마들렌</div>
+                        
+                        <div class="room entrance" style="grid-column: 2 / 5; grid-row: 2; justify-self: center; width: 70px; height: 16px; align-self: start;">입구</div>
+                        
+                        <div class="room" id="room-1807" style="grid-column: 2; grid-row: 3;">1807<br>퀸아망</div>
+                        <div class="room" id="room-1806" style="grid-column: 2; grid-row: 4;">1806<br>다쿠아즈</div>
+                        <div class="room" id="room-1805" style="grid-column: 1 / 3; grid-row: 5;">1805<br>와플</div>
+
+                        <div class="room" id="room-1802" style="grid-column: 4; grid-row: 3;">1802<br>스콘</div>
+                        <div class="room" id="room-1803" style="grid-column: 4; grid-row: 4;">1803<br>까눌레</div>
+                        <div class="room" id="room-1804" style="grid-column: 4 / 6; grid-row: 5;">1804<br>휘낭시에</div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
