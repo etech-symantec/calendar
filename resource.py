@@ -341,8 +341,23 @@ def run(playwright):
 
             /* 타임라인 스타일 */
             #timeline-container {{ background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }}
-            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; }}
+            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; margin-left: 80px; }} /* 좌측 카테고리 헤더를 위한 80px 여백 추가 */
             .timeline-hour-marker {{ position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }}
+            /* 🌟 [추가됨] 좌측 그룹(카테고리) 헤더 스타일 */
+            .category-label {{
+                position: absolute;
+                left: -80px; /* margin-left 만큼 왼쪽으로 이동 */
+                width: 70px;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                padding-right: 10px;
+                font-weight: 900;
+                color: #475569;
+                font-size: 12px;
+                border-right: 3px solid #cbd5e1;
+                box-sizing: border-box;
+            }}
             
             /* 타임라인 그리드 선 */
             .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
@@ -351,7 +366,8 @@ def run(playwright):
             .timeline-now-label {{ position: absolute; top: -20px; font-size: 10px; font-weight: bold; color: white; background-color: rgba(239, 68, 68, 0.8); padding: 2px 4px; border-radius: 3px; transform: translateX(-50%); z-index: 21; }}
 
             /* 기본 막대 (회색) */
-            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; }}
+            /* 🌟 [수정됨] 이벤트 바 (box-sizing 적용으로 overflow 완벽 방지) */
+            .timeline-event-bar {{ position: absolute; height: 24px; background-color: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; font-size: 10px; color: #4b5563; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; box-sizing: border-box; }}
             .timeline-event-bar:hover {{ z-index: 10; overflow: visible; white-space: normal; height: auto; }}
             /* 🌟 [추가됨] 차량 (진한 회색) */
             .timeline-event-bar.vehicle {{ background-color: #6c7787; border: 1px solid #374151; color: #ffffff; }}
@@ -422,7 +438,7 @@ def run(playwright):
         <!-- 공통 헤더 + 제목 + 버전 -->
         <script>
             window.pageTitle = "📅 자원 일정 대시보드";
-            window.pageVersion = "ver.2026.3.2.01";
+            window.pageVersion = "ver.2026.4.2.01";
         </script>
         <script src="https://etech-symantec.github.io/header.js"></script>
 
@@ -720,16 +736,19 @@ def run(playwright):
                             // 🌟 18시 이후 일정 잘라내기 (Clamp)
                             let startMin = timeStringToMinutes(startTimeStr);
                             let endMin = timeStringToMinutes(endTimeStr);
-                            const limitMin = 18 * 60; // 18시 = 1080분
+                            const baseMin = 9 * 60;  // 09시
+                            const limitMin = 18 * 60; // 18시
 
-                            if (startMin < limitMin) {{
-                                if (endMin > limitMin) endMin = limitMin; // 18시 넘으면 18시로 고정
-                                todayEvents.push({{ start: startMin, end: endMin, timeStr: timeText, resource: resourceName, title: eventTitle, name: bookerName }});
+                            // 종료가 09시 전이거나 시작이 18시 후면 아예 제외
+                            if (startMin < limitMin && endMin > baseMin) {{
+                                if (startMin < baseMin) startMin = baseMin; // 09시보다 일찍 시작하면 09시로 맞춤
+                                if (endMin > limitMin) endMin = limitMin;   // 18시보다 늦게 끝나면 18시로 맞춤
+                                todayEvents.push({{ start: startMin, end: endMin, timeStr: timeText, resource: resourceName, title: eventTitle, name: bookerName, category: 1 }});
                             }}
                         }}
                     }});
                 }}
-
+                
                 const startHour = 9, endHour = 18;
                 const totalMinutes = (endHour - startHour) * 60;
                 
@@ -799,6 +818,7 @@ def run(playwright):
                 let currentTopOffset = 0;
                 const ROW_HEIGHT = 30; // 막대 하나가 차지하는 세로 높이
                 const CATEGORY_GAP = 15; // 그룹과 그룹 사이의 여백
+                const catNames = ["차량", "회의실", "시에스타", "테라피"];
 
                 for (let cat = 0; cat <= 3; cat++) {{
                     const catEvents = todayEvents.filter(e => e.category === cat);
@@ -921,8 +941,18 @@ def run(playwright):
                         timelineChart.appendChild(bar);
                     }});
 
-                    // 🌟 다음 그룹을 그리기 위해 오프셋을 '현재 그룹이 쓴 만큼 + 여백(15px)' 추가
-                    currentTopOffset += (levels.length * ROW_HEIGHT) + CATEGORY_GAP;
+                    // 🌟 [추가됨] 그룹 높이 계산 및 좌측 헤더 생성
+                    const groupHeight = Math.max(levels.length, 1) * ROW_HEIGHT;
+                    
+                    const label = document.createElement('div');
+                    label.className = 'category-label';
+                    label.innerText = catNames[cat];
+                    label.style.top = `${{currentTopOffset}}px`;
+                    label.style.height = `${{groupHeight}}px`;
+                    timelineChart.appendChild(label);
+
+                    // 다음 그룹 그리기 오프셋 설정
+                    currentTopOffset += groupHeight + CATEGORY_GAP;
                 }}
 
                 // 🌟 차트 전체 높이를 최종 계산된 offset에 맞춰 조절
