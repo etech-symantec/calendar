@@ -157,7 +157,7 @@
         <div class="container">
             <div class="header-container">
                 <div class="header-left">
-                    <span class="sync-time">Update: 2026-04-02 11:10:55</span>
+                    <span class="sync-time">Update: 2026-04-02 11:13:56</span>
                 </div>
                 <div class="nav-top">
                     <a href="https://etech-symantec.github.io/calendar/" class="nav-link link-shared">📅 공유일정</a>
@@ -508,139 +508,153 @@
                     }
                 }
 
-                todayEvents.sort((a, b) => a.start - b.start);
-                const levels = []; 
-
-                // 🌟 [추가됨] 미니맵에 사용할 룸 매핑 데이터
-                const roomKeys = ["1701", "마카롱", "1702", "도넛", "1703", "에끌레어", "1704", "푸딩", "1705", "파르페", "1706", "바클라바", "1801", "마들렌", "1802", "스콘", "1803", "까눌레", "1804", "휘낭시에", "1805", "와플", "1806", "다쿠아즈", "1807", "퀸아망"];
-                const roomIds = ["1701", "1701", "1702", "1702", "1703", "1703", "1704", "1704", "1705", "1705", "1706", "1706", "1801", "1801", "1802", "1802", "1803", "1803", "1804", "1804", "1805", "1805", "1806", "1806", "1807", "1807"];
-
+                // 🌟 [수정됨] 1. 이벤트를 카테고리별로 미리 분류 (0:차량, 1:회의실, 2:시에스타, 3:테라피)
                 todayEvents.forEach(event => {
-                    let levelIndex = levels.findIndex(end => event.start >= end);
-                    if (levelIndex === -1) {
-                        levelIndex = levels.length;
-                        levels.push(event.end);
-                    } else {
-                        levels[levelIndex] = event.end; 
-                    }
-
-                    const startMinutesFromBase = Math.max(0, event.start - (startHour * 60));
-                    const duration = Math.max(10, event.end - event.start); 
-                    const left = (startMinutesFromBase / totalMinutes) * 100;
-                    const width = (duration / totalMinutes) * 100;
-                    const top = levelIndex * 30;
-
-                    const bar = document.createElement('div');
-                    bar.className = 'timeline-event-bar';
-                    
-                    if (blueTeam.some(m => event.name.includes(m))) {
-                        bar.classList.add('blue');
-                    } else if (yellowTeam.some(m => event.name.includes(m))) {
-                        bar.classList.add('yellow');
-                    } else if (greenTeam.some(m => event.name.includes(m))) {
-                        bar.classList.add('green');
-                    } else if (redTeam.some(m => event.name.includes(m))) {
-                        bar.classList.add('red');
-                    }
-
-                    // 🌟 [추가됨] 차량 (진한 회색)
-                    // 자원명이나 예약명에 '차량'이 포함되면 vehicle 클래스 추가
-                    if (event.resource.includes("차량") || event.title.includes("차량")) {
-                        bar.classList.add('vehicle');
-                    }
-                    
-                    // 🌟 [추가됨] 시에스타/테라피 (점선)
-                    // 자원명이나 예약명에 '시에스타' 또는 '테라피'가 포함되면 rest 클래스 추가
-                    if (event.resource.includes("시에스타") || event.title.includes("시에스타") || 
-                        event.resource.includes("테라피") || event.title.includes("테라피")) {
-                        bar.classList.add('rest');
-                    }
-
-                    bar.style.left = `${left}%`;
-                    bar.style.width = `${width}%`;
-                    bar.style.top = `${top}px`;
-                    
-                    // 💡 타임라인 바: [자원명] [예약명]
-                    bar.innerText = `[${event.resource}] ${event.title}`;
-                    bar.title = `[${event.name}] ${event.title} (${event.timeStr})`; 
-                    // 🌟 [수정됨] 시에스타 매핑 데이터 추가
-                    const siestaKeys = ["시에스타 1", "시에스타 2", "시에스타 3", "시에스타 4", "시에스타 5", "시에스타 6", "시에스타1", "시에스타2", "시에스타3", "시에스타4", "시에스타5", "시에스타6"];
-                    const siestaIds = ["1", "2", "3", "4", "5", "6", "1", "2", "3", "4", "5", "6"];
-
-                    // 🌟 [수정됨] 미니맵 마우스 이벤트 (일반 회의실 vs 시에스타 구분)
-                    bar.addEventListener('mouseenter', (e) => {
-                        let targetId = null;
-                        let isSiesta = false;
-
-                        // 1. 시에스타인지 먼저 확인
-                        if(event.resource.includes("시에스타") || event.title.includes("시에스타")) {
-                            isSiesta = true;
-                            for(let i=0; i<siestaKeys.length; i++) {
-                                if(event.resource.includes(siestaKeys[i]) || event.title.includes(siestaKeys[i])) {
-                                    targetId = "siesta-" + siestaIds[i];
-                                    break;
-                                }
-                            }
-                        } else {
-                            // 2. 일반 회의실인지 확인
-                            for(let i=0; i<roomKeys.length; i++) {
-                                if(event.resource.includes(roomKeys[i]) || event.title.includes(roomKeys[i])) {
-                                    targetId = "room-" + roomIds[i];
-                                    break;
-                                }
-                            }
-                        }
-
-                        // 둘 중 하나라도 해당되면 툴팁 표시
-                        if(targetId || isSiesta) {
-                            document.querySelectorAll('.minimap-grid .room').forEach(el => el.classList.remove('highlight'));
-                            
-                            if(targetId) {
-                                const targetEl = document.getElementById(targetId);
-                                if(targetEl) targetEl.classList.add('highlight');
-                            }
-
-                            // 일반/시에스타에 맞춰 툴팁창 선택
-                            const tooltip = isSiesta ? document.getElementById('siesta-minimap-tooltip') : document.getElementById('minimap-tooltip');
-                            tooltip.style.display = 'block';
-                            
-                            let x = e.clientX + 15;
-                            let y = e.clientY + 15;
-                            if (x + tooltip.offsetWidth > window.innerWidth) x = e.clientX - tooltip.offsetWidth - 10;
-                            if (y + tooltip.offsetHeight > window.innerHeight) y = e.clientY - tooltip.offsetHeight - 10;
-                            
-                            tooltip.style.left = x + 'px';
-                            tooltip.style.top = y + 'px';
-                        }
-                    });
-
-                    bar.addEventListener('mousemove', (e) => {
-                        const confTooltip = document.getElementById('minimap-tooltip');
-                        const siestaTooltip = document.getElementById('siesta-minimap-tooltip');
-                        let activeTooltip = null;
-                        
-                        if (confTooltip.style.display === 'block') activeTooltip = confTooltip;
-                        else if (siestaTooltip.style.display === 'block') activeTooltip = siestaTooltip;
-
-                        if(activeTooltip) {
-                            let x = e.clientX + 15;
-                            let y = e.clientY + 15;
-                            if (x + activeTooltip.offsetWidth > window.innerWidth) x = e.clientX - activeTooltip.offsetWidth - 10;
-                            if (y + activeTooltip.offsetHeight > window.innerHeight) y = e.clientY - activeTooltip.offsetHeight - 10;
-                            activeTooltip.style.left = x + 'px';
-                            activeTooltip.style.top = y + 'px';
-                        }
-                    });
-
-                    bar.addEventListener('mouseleave', (e) => {
-                        document.getElementById('minimap-tooltip').style.display = 'none';
-                        document.getElementById('siesta-minimap-tooltip').style.display = 'none';
-                    });
-                    
-                    timelineChart.appendChild(bar);
+                    const titleRes = event.resource + event.title;
+                    if (titleRes.includes("차량")) event.category = 0;
+                    else if (titleRes.includes("시에스타")) event.category = 2;
+                    else if (titleRes.includes("테라피")) event.category = 3;
+                    else event.category = 1; // 나머지는 모두 회의실로 간주
                 });
 
-                timelineChart.style.height = `${(levels.length || 1) * 30 + 20}px`;
+                // 미니맵에 사용할 룸 매핑 데이터
+                const roomKeys = ["1701", "마카롱", "1702", "도넛", "1703", "에끌레어", "1704", "푸딩", "1705", "파르페", "1706", "바클라바", "1801", "마들렌", "1802", "스콘", "1803", "까눌레", "1804", "휘낭시에", "1805", "와플", "1806", "다쿠아즈", "1807", "퀸아망"];
+                const roomIds = ["1701", "1701", "1702", "1702", "1703", "1703", "1704", "1704", "1705", "1705", "1706", "1706", "1801", "1801", "1802", "1802", "1803", "1803", "1804", "1804", "1805", "1805", "1806", "1806", "1807", "1807"];
+                const siestaKeys = ["시에스타 1", "시에스타 2", "시에스타 3", "시에스타 4", "시에스타 5", "시에스타 6", "시에스타1", "시에스타2", "시에스타3", "시에스타4", "시에스타5", "시에스타6"];
+                const siestaIds = ["1", "2", "3", "4", "5", "6", "1", "2", "3", "4", "5", "6"];
+
+                // 🌟 [수정됨] 2. 카테고리별로 순서대로(0->1->2->3) Y축 위치(Offset)를 누적하며 렌더링
+                let currentTopOffset = 0;
+                const ROW_HEIGHT = 30; // 막대 하나가 차지하는 세로 높이
+                const CATEGORY_GAP = 15; // 그룹과 그룹 사이의 여백
+
+                for (let cat = 0; cat <= 3; cat++) {
+                    const catEvents = todayEvents.filter(e => e.category === cat);
+                    
+                    // 해당 그룹에 일정이 없으면 그리기 패스
+                    if (catEvents.length === 0) continue;
+
+                    // 같은 카테고리 내에서 시간순으로 정렬
+                    catEvents.sort((a, b) => a.start - b.start);
+                    
+                    const levels = []; 
+
+                    catEvents.forEach(event => {
+                        let levelIndex = levels.findIndex(end => event.start >= end);
+                        if (levelIndex === -1) {
+                            levelIndex = levels.length;
+                            levels.push(event.end);
+                        } else {
+                            levels[levelIndex] = event.end; 
+                        }
+
+                        const startMinutesFromBase = Math.max(0, event.start - (startHour * 60));
+                        const duration = Math.max(10, event.end - event.start); 
+                        const left = (startMinutesFromBase / totalMinutes) * 100;
+                        const width = (duration / totalMinutes) * 100;
+                        
+                        // 🌟 이전 카테고리들이 차지한 높이(currentTopOffset)를 기준으로 Top 위치 결정
+                        const top = currentTopOffset + (levelIndex * ROW_HEIGHT);
+
+                        const bar = document.createElement('div');
+                        bar.className = 'timeline-event-bar';
+                        
+                        if (blueTeam.some(m => event.name.includes(m))) {
+                            bar.classList.add('blue');
+                        } else if (yellowTeam.some(m => event.name.includes(m))) {
+                            bar.classList.add('yellow');
+                        } else if (greenTeam.some(m => event.name.includes(m))) {
+                            bar.classList.add('green');
+                        } else if (redTeam.some(m => event.name.includes(m))) {
+                            bar.classList.add('red');
+                        }
+
+                        // CSS 클래스 적용
+                        if (event.category === 0) bar.classList.add('vehicle');
+                        if (event.category === 2 || event.category === 3) bar.classList.add('rest');
+
+                        bar.style.left = `${left}%`;
+                        bar.style.width = `${width}%`;
+                        bar.style.top = `${top}px`;
+                        
+                        bar.innerText = `[${event.resource}] ${event.title}`;
+                        bar.title = `[${event.name}] ${event.title} (${event.timeStr})`; 
+
+                        // 미니맵 마우스 이벤트
+                        bar.addEventListener('mouseenter', (e) => {
+                            let targetId = null;
+                            let isSiesta = false;
+
+                            // 분류해둔 카테고리로 툴팁 매핑
+                            if(event.category === 2) {
+                                isSiesta = true;
+                                for(let i=0; i<siestaKeys.length; i++) {
+                                    if(event.resource.includes(siestaKeys[i]) || event.title.includes(siestaKeys[i])) {
+                                        targetId = "siesta-" + siestaIds[i];
+                                        break;
+                                    }
+                                }
+                            } else if(event.category === 1) {
+                                for(let i=0; i<roomKeys.length; i++) {
+                                    if(event.resource.includes(roomKeys[i]) || event.title.includes(roomKeys[i])) {
+                                        targetId = "room-" + roomIds[i];
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if(targetId || isSiesta) {
+                                document.querySelectorAll('.minimap-grid .room').forEach(el => el.classList.remove('highlight'));
+                                if(targetId) {
+                                    const targetEl = document.getElementById(targetId);
+                                    if(targetEl) targetEl.classList.add('highlight');
+                                }
+
+                                const tooltip = isSiesta ? document.getElementById('siesta-minimap-tooltip') : document.getElementById('minimap-tooltip');
+                                tooltip.style.display = 'block';
+                                
+                                let x = e.clientX + 15;
+                                let y = e.clientY + 15;
+                                if (x + tooltip.offsetWidth > window.innerWidth) x = e.clientX - tooltip.offsetWidth - 10;
+                                if (y + tooltip.offsetHeight > window.innerHeight) y = e.clientY - tooltip.offsetHeight - 10;
+                                
+                                tooltip.style.left = x + 'px';
+                                tooltip.style.top = y + 'px';
+                            }
+                        });
+
+                        bar.addEventListener('mousemove', (e) => {
+                            const confTooltip = document.getElementById('minimap-tooltip');
+                            const siestaTooltip = document.getElementById('siesta-minimap-tooltip');
+                            let activeTooltip = null;
+                            
+                            if (confTooltip.style.display === 'block') activeTooltip = confTooltip;
+                            else if (siestaTooltip.style.display === 'block') activeTooltip = siestaTooltip;
+
+                            if(activeTooltip) {
+                                let x = e.clientX + 15;
+                                let y = e.clientY + 15;
+                                if (x + activeTooltip.offsetWidth > window.innerWidth) x = e.clientX - activeTooltip.offsetWidth - 10;
+                                if (y + activeTooltip.offsetHeight > window.innerHeight) y = e.clientY - activeTooltip.offsetHeight - 10;
+                                activeTooltip.style.left = x + 'px';
+                                activeTooltip.style.top = y + 'px';
+                            }
+                        });
+
+                        bar.addEventListener('mouseleave', (e) => {
+                            document.getElementById('minimap-tooltip').style.display = 'none';
+                            document.getElementById('siesta-minimap-tooltip').style.display = 'none';
+                        });
+                        
+                        timelineChart.appendChild(bar);
+                    });
+
+                    // 🌟 다음 그룹을 그리기 위해 오프셋을 '현재 그룹이 쓴 만큼 + 여백(15px)' 추가
+                    currentTopOffset += (levels.length * ROW_HEIGHT) + CATEGORY_GAP;
+                }
+
+                // 🌟 차트 전체 높이를 최종 계산된 offset에 맞춰 조절
+                timelineChart.style.height = `${currentTopOffset + 10}px`;
             }
 
             function timeStringToMinutes(timeStr) {
