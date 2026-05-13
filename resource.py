@@ -852,12 +852,10 @@ def run(playwright):
                     else event.category = 1; 
                 }});
 
-                // 🌟 해당 날짜에 존재하는 모든 고유 자원 추출 (차량, 회의실)
-                const allCat0Events = todayEvents.filter(e => e.category === 0);
-                const allCat1Events = todayEvents.filter(e => e.category === 1);
-                const uniqueResources = {{
-                    0: [...new Set(allCat0Events.map(e => e.resource))],
-                    1: [...new Set(allCat1Events.map(e => e.resource))]
+                // 🌟 사용자가 지정한 고정 키워드로 차량/회의실 태그 리스트 정의
+                const filterKeywords = {{
+                    0: ["1575", "1879", "3283", "3170"], // 차량 키워드
+                    1: ["1701", "1702", "1703", "1704", "1705", "1706", "1801", "1802", "1803", "1804", "1805", "1806", "1807"] // 회의실 키워드
                 }};
 
                 // 미니맵에 사용할 룸 매핑 데이터
@@ -866,7 +864,7 @@ def run(playwright):
                 const siestaKeys = ["시에스타 1", "시에스타 2", "시에스타 3", "시에스타 4", "시에스타 5", "시에스타 6", "시에스타1", "시에스타2", "시에스타3", "시에스타4", "시에스타5", "시에스타6"];
                 const siestaIds = ["1", "2", "3", "4", "5", "6", "1", "2", "3", "4", "5", "6"];
                 
-                // 🌟 [수정됨] 2. 카테고리별로 순서대로(0->1->2->3) Y축 위치(Offset)를 누적하며 렌더링
+                // 🌟 2. 카테고리별로 순서대로(0->1->2->3) Y축 위치(Offset)를 누적하며 렌더링
                 let currentTopOffset = 0;
                 const ROW_HEIGHT = 30; 
                 const CATEGORY_GAP = 15; 
@@ -876,10 +874,13 @@ def run(playwright):
                     const baseCatEvents = todayEvents.filter(e => e.category === cat);
                     if (baseCatEvents.length === 0) continue; // 해당 카테고리 일정이 아예 없으면 렌더링 제외
 
-                    // 🌟 사용자가 선택한 태그가 있으면 그 일정만 남기고 필터링
+                    // 🌟 사용자가 선택한 키워드가 제목이나 자원명에 포함된 일정만 필터링
                     let catEvents = baseCatEvents;
                     if ((cat === 0 || cat === 1) && activeFilters[cat] !== null) {{
-                        catEvents = catEvents.filter(e => e.resource === activeFilters[cat]);
+                        catEvents = catEvents.filter(e => 
+                            e.resource.includes(activeFilters[cat]) || 
+                            e.title.includes(activeFilters[cat])
+                        );
                     }}
 
                     catEvents.sort((a, b) => a.start - b.start);
@@ -1008,11 +1009,11 @@ def run(playwright):
                         allTag.onclick = () => setCategoryFilter(cat, null);
                         tagsDiv.appendChild(allTag);
 
-                        uniqueResources[cat].forEach(res => {{
+                        filterKeywords[cat].forEach(keyword => {{
                             const tag = document.createElement('span');
-                            tag.className = `cat-tag ${{activeFilters[cat] === res ? 'active' : ''}}`;
-                            tag.innerText = `#${{res}}`;
-                            tag.onclick = () => setCategoryFilter(cat, res);
+                            tag.className = `cat-tag ${{activeFilters[cat] === keyword ? 'active' : ''}}`;
+                            tag.innerText = `#${{keyword}}`;
+                            tag.onclick = () => setCategoryFilter(cat, keyword);
                             tagsDiv.appendChild(tag);
                         }});
                         
