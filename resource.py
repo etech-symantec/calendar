@@ -1002,8 +1002,9 @@ def run(playwright):
                     titleDiv.innerText = catNames[cat];
                     label.appendChild(titleDiv);
 
-                    // 🌟 차량(0)과 회의실(1)일 때만 태그 버튼 추가
-                    if (cat === 0 || cat === 1) {{
+                    // 🌟 [수정됨] 차량(0)과 회의실(1)일 때 태그 버튼 추가 로직 분리
+                    if (cat === 0) {{
+                        // 차량은 기존처럼 한 줄로 표시
                         const tagsDiv = document.createElement('div');
                         tagsDiv.className = 'cat-tags';
                         
@@ -1022,6 +1023,39 @@ def run(playwright):
                         }});
                         
                         label.appendChild(tagsDiv);
+                        
+                    }} else if (cat === 1) {{
+                        // 회의실은 17층과 18층을 위아래 두 줄로 분리하여 표시
+                        const tagsDiv17 = document.createElement('div');
+                        tagsDiv17.className = 'cat-tags';
+                        tagsDiv17.style.marginBottom = '4px'; // 두 줄 사이의 여백
+
+                        const tagsDiv18 = document.createElement('div');
+                        tagsDiv18.className = 'cat-tags';
+
+                        // #전체 태그는 17층 라인 맨 앞에 배치
+                        const allTag = document.createElement('span');
+                        allTag.className = `cat-tag ${{activeFilters[cat] === null ? 'active' : ''}}`;
+                        allTag.innerText = '#전체';
+                        allTag.onclick = () => setCategoryFilter(cat, null);
+                        tagsDiv17.appendChild(allTag);
+
+                        filterKeywords[cat].forEach(keyword => {{
+                            const tag = document.createElement('span');
+                            tag.className = `cat-tag ${{activeFilters[cat] === keyword ? 'active' : ''}}`;
+                            tag.innerText = `#${{keyword}}`;
+                            tag.onclick = () => setCategoryFilter(cat, keyword);
+                            
+                            // 17로 시작하면 윗줄, 18로 시작하면 아랫줄에 추가
+                            if (keyword.startsWith("17")) {{
+                                tagsDiv17.appendChild(tag);
+                            }} else if (keyword.startsWith("18")) {{
+                                tagsDiv18.appendChild(tag);
+                            }}
+                        }});
+                        
+                        label.appendChild(tagsDiv17);
+                        label.appendChild(tagsDiv18);
                     }}
 
                     timelineChart.appendChild(label);
