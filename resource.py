@@ -341,22 +341,60 @@ def run(playwright):
 
             /* 타임라인 스타일 */
             #timeline-container {{ background: #fff; padding: 15px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; overflow-x: auto; }}
-            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; margin-left: 80px; }} /* 좌측 카테고리 헤더를 위한 80px 여백 추가 */
+            #timeline-chart {{ position: relative; height: 200px; border-top: 1px solid #e5e7eb; margin-top: 30px; min-width: 600px; margin-left: 150px; }} 
+            
             .timeline-hour-marker {{ position: absolute; top: -25px; font-size: 10px; color: #6b7280; transform: translateX(-50%); }}
-            /* 🌟 [추가됨] 좌측 그룹(카테고리) 헤더 스타일 */
+            .timeline-grid-line {{ position: absolute; top: 0; bottom: 0; width: 1px; background-color: #f3f4f6; }}
+            .timeline-grid-line.half-hour {{ border-left: 1px dashed #e5e7eb; background-color: transparent; width: 0; }}
+
+            /* 🌟 [추가/수정됨] 카테고리 헤더 및 태그 스타일 */
             .category-label {{
                 position: absolute;
-                left: -80px; /* margin-left 만큼 왼쪽으로 이동 */
-                width: 70px;
+                left: -150px; 
+                width: 140px;
                 display: flex;
-                align-items: center;
-                justify-content: flex-end;
+                flex-direction: column;
+                align-items: flex-end;
+                justify-content: flex-start;
                 padding-right: 10px;
+                padding-top: 5px;
                 font-weight: 900;
                 color: #475569;
                 font-size: 12px;
                 border-right: 3px solid #cbd5e1;
                 box-sizing: border-box;
+            }}
+            .cat-title {{
+                font-size: 14px;
+                margin-bottom: 8px;
+            }}
+            .cat-tags {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                justify-content: flex-end;
+            }}
+            .cat-tag {{
+                font-size: 10px;
+                font-weight: normal;
+                background: #f1f5f9;
+                color: #64748b;
+                padding: 3px 8px;
+                border-radius: 12px;
+                cursor: pointer;
+                transition: 0.2s;
+                border: 1px solid #e2e8f0;
+                text-align: right;
+                word-break: break-all;
+            }}
+            .cat-tag:hover {{
+                background: #e2e8f0;
+            }}
+            .cat-tag.active {{
+                background: #3b82f6;
+                color: #fff;
+                border-color: #2563eb;
+                font-weight: bold;
             }}
             
             /* 타임라인 그리드 선 */
@@ -549,8 +587,9 @@ def run(playwright):
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
             const redTeam = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"];
 
-            // 🌟 [추가됨] 현재 타임라인이 보여주는 날짜 변수
+            // 🌟 현재 타임라인이 보여주는 날짜 변수
             let currentTimelineDate = new Date();
+            let activeFilters = {{ 0: null, 1: null }};
 
             document.addEventListener("DOMContentLoaded", function() {{
                 renderTable();
@@ -664,14 +703,19 @@ def run(playwright):
                 if(count === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }}
 
-            // 🌟 [추가됨] 버튼 클릭 시 날짜 변경 함수
-            function changeTimelineDate(offset) {{
-                currentTimelineDate.setDate(currentTimelineDate.getDate() + offset);
-                renderTimeline();
+            // 🌟 버튼 클릭 시 날짜 변경 함수
+            function changeTimelineDate(offset) {{ 
+                currentTimelineDate.setDate(currentTimelineDate.getDate() + offset); 
+                activeFilters = {{ 0: null, 1: null }}; // 날짜 변경 시 필터 초기화
+                renderTimeline(); 
             }}
-            
-            function resetToToday() {{
-                currentTimelineDate = new Date();
+            function resetToToday() {{ 
+                currentTimelineDate = new Date(); 
+                activeFilters = {{ 0: null, 1: null }};
+                renderTimeline(); 
+            }}
+            function setCategoryFilter(cat, resource) {{
+                activeFilters[cat] = resource;
                 renderTimeline();
             }}
 
@@ -799,37 +843,47 @@ def run(playwright):
                     }}
                 }}
 
-                // 🌟 [수정됨] 1. 이벤트를 카테고리별로 미리 분류 (0:차량, 1:회의실, 2:시에스타, 3:테라피)
+                // 🌟 1. 이벤트를 카테고리별로 미리 분류 (0:차량, 1:회의실, 2:시에스타, 3:테라피)
                 todayEvents.forEach(event => {{
                     const titleRes = event.resource + event.title;
                     if (titleRes.includes("차량")) event.category = 0;
                     else if (titleRes.includes("시에스타")) event.category = 2;
                     else if (titleRes.includes("테라피")) event.category = 3;
-                    else event.category = 1; // 나머지는 모두 회의실로 간주
+                    else event.category = 1; 
                 }});
+
+                // 🌟 해당 날짜에 존재하는 모든 고유 자원 추출 (차량, 회의실)
+                const allCat0Events = todayEvents.filter(e => e.category === 0);
+                const allCat1Events = todayEvents.filter(e => e.category === 1);
+                const uniqueResources = {{
+                    0: [...new Set(allCat0Events.map(e => e.resource))],
+                    1: [...new Set(allCat1Events.map(e => e.resource))]
+                }};
 
                 // 미니맵에 사용할 룸 매핑 데이터
                 const roomKeys = ["1701", "마카롱", "1702", "도넛", "1703", "에끌레어", "1704", "푸딩", "1705", "파르페", "1706", "바클라바", "1801", "마들렌", "1802", "스콘", "1803", "까눌레", "1804", "휘낭시에", "1805", "와플", "1806", "다쿠아즈", "1807", "퀸아망"];
                 const roomIds = ["1701", "1701", "1702", "1702", "1703", "1703", "1704", "1704", "1705", "1705", "1706", "1706", "1801", "1801", "1802", "1802", "1803", "1803", "1804", "1804", "1805", "1805", "1806", "1806", "1807", "1807"];
                 const siestaKeys = ["시에스타 1", "시에스타 2", "시에스타 3", "시에스타 4", "시에스타 5", "시에스타 6", "시에스타1", "시에스타2", "시에스타3", "시에스타4", "시에스타5", "시에스타6"];
                 const siestaIds = ["1", "2", "3", "4", "5", "6", "1", "2", "3", "4", "5", "6"];
-
+                
                 // 🌟 [수정됨] 2. 카테고리별로 순서대로(0->1->2->3) Y축 위치(Offset)를 누적하며 렌더링
                 let currentTopOffset = 0;
-                const ROW_HEIGHT = 30; // 막대 하나가 차지하는 세로 높이
-                const CATEGORY_GAP = 15; // 그룹과 그룹 사이의 여백
+                const ROW_HEIGHT = 30; 
+                const CATEGORY_GAP = 15; 
                 const catNames = ["차량", "회의실", "시에스타", "테라피"];
 
                 for (let cat = 0; cat <= 3; cat++) {{
-                    const catEvents = todayEvents.filter(e => e.category === cat);
-                    
-                    // 해당 그룹에 일정이 없으면 그리기 패스
-                    if (catEvents.length === 0) continue;
+                    const baseCatEvents = todayEvents.filter(e => e.category === cat);
+                    if (baseCatEvents.length === 0) continue; // 해당 카테고리 일정이 아예 없으면 렌더링 제외
 
-                    // 같은 카테고리 내에서 시간순으로 정렬
+                    // 🌟 사용자가 선택한 태그가 있으면 그 일정만 남기고 필터링
+                    let catEvents = baseCatEvents;
+                    if ((cat === 0 || cat === 1) && activeFilters[cat] !== null) {{
+                        catEvents = catEvents.filter(e => e.resource === activeFilters[cat]);
+                    }}
+
                     catEvents.sort((a, b) => a.start - b.start);
-                    
-                    const levels = []; 
+                    const levels = [];
 
                     catEvents.forEach(event => {{
                         let levelIndex = levels.findIndex(end => event.start >= end);
@@ -844,24 +898,16 @@ def run(playwright):
                         const duration = Math.max(10, event.end - event.start); 
                         const left = (startMinutesFromBase / totalMinutes) * 100;
                         const width = (duration / totalMinutes) * 100;
-                        
-                        // 🌟 이전 카테고리들이 차지한 높이(currentTopOffset)를 기준으로 Top 위치 결정
                         const top = currentTopOffset + (levelIndex * ROW_HEIGHT);
 
                         const bar = document.createElement('div');
                         bar.className = 'timeline-event-bar';
                         
-                        if (blueTeam.some(m => event.name.includes(m))) {{
-                            bar.classList.add('blue');
-                        }} else if (yellowTeam.some(m => event.name.includes(m))) {{
-                            bar.classList.add('yellow');
-                        }} else if (greenTeam.some(m => event.name.includes(m))) {{
-                            bar.classList.add('green');
-                        }} else if (redTeam.some(m => event.name.includes(m))) {{
-                            bar.classList.add('red');
-                        }}
+                        if (blueTeam.some(m => event.name.includes(m))) bar.classList.add('blue');
+                        else if (yellowTeam.some(m => event.name.includes(m))) bar.classList.add('yellow');
+                        else if (greenTeam.some(m => event.name.includes(m))) bar.classList.add('green');
+                        else if (redTeam.some(m => event.name.includes(m))) bar.classList.add('red');
 
-                        // CSS 클래스 적용
                         if (event.category === 0) bar.classList.add('vehicle');
                         if (event.category === 2 || event.category === 3) bar.classList.add('rest');
 
@@ -877,7 +923,6 @@ def run(playwright):
                             let targetId = null;
                             let isSiesta = false;
 
-                            // 분류해둔 카테고리로 툴팁 매핑
                             if(event.category === 2) {{
                                 isSiesta = true;
                                 for(let i=0; i<siestaKeys.length; i++) {{
@@ -909,7 +954,6 @@ def run(playwright):
                                 let y = e.clientY + 15;
                                 if (x + tooltip.offsetWidth > window.innerWidth) x = e.clientX - tooltip.offsetWidth - 10;
                                 if (y + tooltip.offsetHeight > window.innerHeight) y = e.clientY - tooltip.offsetHeight - 10;
-                                
                                 tooltip.style.left = x + 'px';
                                 tooltip.style.top = y + 'px';
                             }}
@@ -937,25 +981,53 @@ def run(playwright):
                             document.getElementById('minimap-tooltip').style.display = 'none';
                             document.getElementById('siesta-minimap-tooltip').style.display = 'none';
                         }});
-                        
+
                         timelineChart.appendChild(bar);
                     }});
 
-                    // 🌟 [추가됨] 그룹 높이 계산 및 좌측 헤더 생성
                     const groupHeight = Math.max(levels.length, 1) * ROW_HEIGHT;
                     
+                    // 🌟 [추가됨] 좌측 헤더 박스와 태그 생성
                     const label = document.createElement('div');
                     label.className = 'category-label';
-                    label.innerText = catNames[cat];
                     label.style.top = `${{currentTopOffset}}px`;
-                    label.style.height = `${{groupHeight}}px`;
+                    
+                    const titleDiv = document.createElement('div');
+                    titleDiv.className = 'cat-title';
+                    titleDiv.innerText = catNames[cat];
+                    label.appendChild(titleDiv);
+
+                    // 🌟 차량(0)과 회의실(1)일 때만 태그 버튼 추가
+                    if (cat === 0 || cat === 1) {{
+                        const tagsDiv = document.createElement('div');
+                        tagsDiv.className = 'cat-tags';
+                        
+                        const allTag = document.createElement('span');
+                        allTag.className = `cat-tag ${{activeFilters[cat] === null ? 'active' : ''}}`;
+                        allTag.innerText = '#전체';
+                        allTag.onclick = () => setCategoryFilter(cat, null);
+                        tagsDiv.appendChild(allTag);
+
+                        uniqueResources[cat].forEach(res => {{
+                            const tag = document.createElement('span');
+                            tag.className = `cat-tag ${{activeFilters[cat] === res ? 'active' : ''}}`;
+                            tag.innerText = `#${{res}}`;
+                            tag.onclick = () => setCategoryFilter(cat, res);
+                            tagsDiv.appendChild(tag);
+                        }});
+                        
+                        label.appendChild(tagsDiv);
+                    }}
+
                     timelineChart.appendChild(label);
 
-                    // 다음 그룹 그리기 오프셋 설정
-                    currentTopOffset += groupHeight + CATEGORY_GAP;
+                    // 🌟 태그가 차지하는 공간 때문에 헤더가 이벤트 그룹보다 커지는 현상을 방지
+                    const finalHeight = Math.max(groupHeight, label.offsetHeight);
+                    label.style.height = `${{finalHeight}}px`;
+
+                    currentTopOffset += finalHeight + CATEGORY_GAP;
                 }}
 
-                // 🌟 차트 전체 높이를 최종 계산된 offset에 맞춰 조절
                 timelineChart.style.height = `${{currentTopOffset + 10}}px`;
             }}
 
