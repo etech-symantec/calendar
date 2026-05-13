@@ -854,10 +854,10 @@ def run(playwright):
 
                 // 🌟 사용자가 지정한 고정 키워드로 차량/회의실 태그 리스트 정의
                 const filterKeywords = {{
-                    0: ["1575", "1879", "3283", "3170"], // 차량 키워드
-                    1: ["1701", "1702", "1703", "1704", "1705", "1706", "1801", "1802", "1803", "1804", "1805", "1806", "1807"] // 회의실 키워드
+                    0: ["1575", "1879", "3283", "3170"],
+                    1: ["17층", "18층", "1701-마카롱", "1702-도넛", "1703-에끌레어(L)", "1704-푸딩(L)", "1705-파르페", "1706-바클라바", "1801-마들렌", "1802-스콘", "1803-까놀레", "1804-휘낭시에(L)", "1805-와플(L)", "1806-다쿠아즈", "1807-퀸아"]
                 }};
-
+                
                 // 미니맵에 사용할 룸 매핑 데이터
                 const roomKeys = ["1701", "마카롱", "1702", "도넛", "1703", "에끌레어", "1704", "푸딩", "1705", "파르페", "1706", "바클라바", "1801", "마들렌", "1802", "스콘", "1803", "까눌레", "1804", "휘낭시에", "1805", "와플", "1806", "다쿠아즈", "1807", "퀸아망"];
                 const roomIds = ["1701", "1701", "1702", "1702", "1703", "1703", "1704", "1704", "1705", "1705", "1706", "1706", "1801", "1801", "1802", "1802", "1803", "1803", "1804", "1804", "1805", "1805", "1806", "1806", "1807", "1807"];
@@ -874,13 +874,17 @@ def run(playwright):
                     const baseCatEvents = todayEvents.filter(e => e.category === cat);
                     if (baseCatEvents.length === 0) continue; // 해당 카테고리 일정이 아예 없으면 렌더링 제외
 
-                    // 🌟 사용자가 선택한 키워드가 제목이나 자원명에 포함된 일정만 필터링
+                    // 🌟 [수정됨] '17층', '18층' 조건 처리 및 키워드 포함 필터링
                     let catEvents = baseCatEvents;
                     if ((cat === 0 || cat === 1) && activeFilters[cat] !== null) {{
-                        catEvents = catEvents.filter(e => 
-                            e.resource.includes(activeFilters[cat]) || 
-                            e.title.includes(activeFilters[cat])
-                        );
+                        catEvents = catEvents.filter(e => {{
+                            // '17층', '18층' 버튼을 눌렀을 경우 앞자리 숫자로 일괄 필터링
+                            if (activeFilters[cat] === "17층") return e.resource.includes("170");
+                            if (activeFilters[cat] === "18층") return e.resource.includes("180");
+                            
+                            // 개별 키워드일 경우 자원명이나 제목에 포함되어 있는지 확인
+                            return e.resource.includes(activeFilters[cat]) || e.title.includes(activeFilters[cat]);
+                        }});
                     }}
 
                     catEvents.sort((a, b) => a.start - b.start);
