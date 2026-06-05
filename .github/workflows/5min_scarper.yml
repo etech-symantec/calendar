@@ -1,19 +1,8 @@
-name: Every 5 min Web Scraper
+name: Every 10 min Web Scraper
 
 on:
   schedule:
-    - cron: '0 * * * *'
-    - cron: '5 * * * *'
-    - cron: '10 * * * *'
-    - cron: '15 * * * *'
-    - cron: '20 * * * *'
-    - cron: '25 * * * *'
-    - cron: '30 * * * *'
-    - cron: '35 * * * *'
-    - cron: '40 * * * *'
-    - cron: '45 * * * *'
-    - cron: '50 * * * *'
-    - cron: '55 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch: # 수동으로 실행할 수 있는 버튼 활성화 (테스트용으로 필수!)
 
 jobs:
@@ -65,16 +54,8 @@ jobs:
           git commit -m "Auto-update: 최신 테이블 데이터 갱신" || echo "No changes to commit"
           git push
 
-      - name: 6. 변경된 HTML 파일 커밋 및 푸시
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add resource.html
-          git commit -m "Auto-update: 최신 테이블 데이터 갱신" || echo "No changes to commit"
-          git push
-
       # 🌟 [여기를 추가해주세요] 에러 발생 시 캡처된 이미지를 다운로드할 수 있게 해줍니다.
-      - name: 7. 디버깅용 스크린샷 업로드 (에러 확인용)
+      - name: 6. 디버깅용 스크린샷 업로드 (에러 확인용)
         if: always() # 스크립트가 에러로 멈춰도 무조건 실행됨
         uses: actions/upload-artifact@v4
         with:
