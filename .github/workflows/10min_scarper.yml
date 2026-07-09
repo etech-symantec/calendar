@@ -1,8 +1,8 @@
 name: Every 10 min Web Scraper
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
+  #schedule:
+  #  - cron: '*/10 * * * *'
   workflow_dispatch: # 수동으로 실행할 수 있는 버튼 활성화 (테스트용으로 필수!)
 
 jobs:
