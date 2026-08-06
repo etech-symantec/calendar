@@ -306,6 +306,8 @@ def run(playwright):
             .btn-yellow.active, .btn-yellow:hover {{ background-color: #eab308; color: white; }}
             .btn-green {{ background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }}
             .btn-green.active, .btn-green:hover {{ background-color: #22c55e; color: white; }}
+            .btn-orange {{ background-color: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }}
+            .btn-orange.active, .btn-orange:hover {{ background-color: #f97316; color: white; }}
             
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
@@ -493,21 +495,21 @@ def run(playwright):
             
             # 🟦 블루팀 섹션 (일정이 있는 경우에만)
             if today_blue_events:
-                body_text += "🟦 **[SSE시만텍/네트워크보안]**\n"
+                body_text += "🟦 **[블루팀]**\n"
                 for item in today_blue_events:
                     body_text += f"- {item}\n"
                 body_text += "\n" # 줄바꿈
 
             # 🟧 오렌지팀 섹션 (일정이 있는 경우에만)
             if today_orange_events:
-                body_text += "🟧 **[SSE팔로알토/SASE]**\n"
+                body_text += "🟧 **[오렌지팀]**\n"
                 for item in today_orange_events:
                     body_text += f"- {item}\n"
                 body_text += "\n" # 줄바꿈
 
             # 🟨 옐로우팀 섹션 (일정이 있는 경우에만)
             if today_yellow_events:
-                body_text += "🟨 **[SDE시만텍/엔드포인트보안]**\n"
+                body_text += "🟨 **[옐로우팀]**\n"
                 for item in today_yellow_events:
                     body_text += f"- {item}\n"
 
