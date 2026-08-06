@@ -146,7 +146,8 @@ def run(playwright):
             # 4. Filter Logic (Python)
             blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
             yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
-            green_team = ["김준엽", "이학주", "현태화", "곽진수", "이창환"]
+            green_team = ["김준엽", "이학주", "현태화", "곽진수", "박상준"]
+            orange_team = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"]
             
             print(f"[DEBUG] Processed {len(grid)} rows in Python.")
             
@@ -188,11 +189,17 @@ def run(playwright):
                             today_yellow_events.append(title_txt)
                             print(f"[DEBUG] [Yellow] Found: {title_txt} ({name_txt})")
                     
-                    # 🟢 그린팀 체크
+                    # 🟢 Check Green Team
                     if any(member in name_txt for member in green_team):
                         if title_txt and title_txt not in today_green_events:
                             today_green_events.append(title_txt)
                             print(f"[DEBUG] [Green] Found: {title_txt} ({name_txt})")
+                    
+                    # 🟠 Check Orange Team
+                    if any(member in name_txt for member in orange_team):
+                        if title_txt and title_txt not in today_orange_events:
+                            today_orange_events.append(title_txt)
+                            print(f"[DEBUG] [Orange] Found: {title_txt} ({name_txt})")
 
         else:
             print("[ERROR] Table not found for data extraction.")
@@ -288,6 +295,7 @@ def run(playwright):
                         <button class="btn btn-blue active" onclick="applyFilter('blue')">🔵 블루팀</button>
                         <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
                         <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
+                        <button class="btn btn-orange" onclick="applyFilter('orange')">🟠 오렌지팀</button>
                         <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
                     </div>
                 </div>
@@ -298,7 +306,9 @@ def run(playwright):
         <script>
             const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
-            const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
+            const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "박상준"];
+            const orangeTeam = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"];
+            
             document.addEventListener("DOMContentLoaded", function() {{
                 const table = document.querySelector('#wrapper table');
                 if(!table) return;
@@ -347,6 +357,7 @@ def run(playwright):
                     if(team === 'blue') return blueTeam.some(m => name.includes(m));
                     if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
                     if(team === 'green') return greenTeam.some(m => name.includes(m));
+                    if(team === 'orange') return orangeTeam.some(m => name.includes(m));
                     return false;
                 }});
                 rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
@@ -415,6 +426,13 @@ def run(playwright):
             if today_blue_events:
                 body_text += "🟦 **[블루팀]**\n"
                 for item in today_blue_events:
+                    body_text += f"- {item}\n"
+                body_text += "\n" # 줄바꿈
+
+            # 🟧 오렌지팀 섹션 (일정이 있는 경우에만)
+            if today_orange_events:
+                body_text += "🟧 **[오렌지팀]**\n"
+                for item in today_orange_events:
                     body_text += f"- {item}\n"
                 body_text += "\n" # 줄바꿈
 
