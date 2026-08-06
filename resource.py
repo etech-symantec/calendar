@@ -149,17 +149,24 @@ def run(playwright):
     today_yellow_events = []
     today_green_events = []
     today_red_events = []
-    final_grid_data = [] 
-    
-    try:
-        table_handle = None
+    final_grid_data = []
+
+    def fetch_flatten_grid():
+        """Locate the current #customListMonthDiv table and flatten its
+        rowspan/colspan structure into a 2D grid of cell dicts.
+        Returns the grid (list of rows), or None on failure."""
         try:
-            table_handle = frame.locator('#customListMonthDiv table')
-            if table_handle.count() == 0: raise Exception("No table in frame")
-        except:
-            table_handle = page.locator('#customListMonthDiv table')
-        
-        if table_handle and table_handle.count() > 0:
+            table_handle = None
+            try:
+                table_handle = frame.locator('#customListMonthDiv table')
+                if table_handle.count() == 0: raise Exception("No table in frame")
+            except:
+                table_handle = page.locator('#customListMonthDiv table')
+
+            if not (table_handle and table_handle.count() > 0):
+                print("[ERROR] Table not found for data extraction.")
+                return None
+
             rows_data = table_handle.first.evaluate("""(table) => {
                 const rows = Array.from(table.rows);
                 return rows.map(tr => {
@@ -179,91 +186,122 @@ def run(playwright):
             for r_idx, row in enumerate(rows_data):
                 while len(grid) <= r_idx:
                     grid.append([])
-                
+
                 c_idx = 0
                 for cell in row:
                     while c_idx < len(grid[r_idx]) and grid[r_idx][c_idx] is not None:
                         c_idx += 1
-                    
+
                     cell_html = cell['html'].replace('<img src="/schedule/resources/Images/ico/resources_ico.png">', '')
 
                     cell_obj = {
                         'text': cell['text'],
-                        'html': cell_html, 
+                        'html': cell_html,
                         'tag': cell['tagName'],
                         'cls': cell['className'],
                         'style': cell['style']
                     }
-                    
+
                     rowspan = cell['rowspan']
                     colspan = cell['colspan']
-                    
+
                     for rr in range(rowspan):
                         target_row = r_idx + rr
                         while len(grid) <= target_row:
                             grid.append([])
-                        
+
                         for cc in range(colspan):
                             target_col = c_idx + cc
                             while len(grid[target_row]) <= target_col:
                                 grid[target_row].append(None)
                             grid[target_row][target_col] = cell_obj
                     c_idx += colspan
-            
-            final_grid_data = grid
 
-            # Filter Logic
-            blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
-            yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
-            green_team = ["김준엽", "이학주", "현태화", "곽진수", "이창환"]
-            red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"]
-            
-            print(f"[DEBUG] Processed {len(grid)} rows in Python.")
-            
-            for row in grid:
-                if len(row) < 3: continue
+            return grid
+        except Exception as e:
+            print(f"[ERROR] Grid fetch/flatten failed: {e}")
+            return None
 
-                date_txt = row[0]['text']
-                name_txt = row[-1]['text']
-                title_txt = row[2]['text'] if len(row) > 2 else row[1]['text']
+    def click_next_month():
+        """Click FullCalendar's 'next month' button, then wait for reload."""
+        print("   ↪️  Clicking next month (.fc-next-button)...")
+        try:
+            frame.locator('.fc-next-button').click(timeout=10000)
+        except Exception as e:
+            print(f"[DEBUG] Frame next-button click failed ({e}), trying page-level locator...")
+            page.locator('.fc-next-button').click(timeout=10000)
+        time.sleep(3)
+        try:
+            page.wait_for_load_state('networkidle')
+        except Exception:
+            pass
 
-                clean_date = re.sub(r'\s+', '', date_txt)
-                nums = re.findall(r'\d+', clean_date)
-                
-                if len(nums) < 2: continue
-                
-                m = int(nums[0])
-                d = int(nums[1])
-                
-                if len(nums) >= 3 and int(nums[0]) > 2000:
-                    m = int(nums[1])
-                    d = int(nums[2])
+    # --- Current month ---
+    grid_month0 = fetch_flatten_grid() or []
+    final_grid_data = grid_month0
 
-                if m == now.month and d == now.day:
-                    if any(member in name_txt for member in blue_team):
-                        if title_txt and title_txt not in today_blue_events:
-                            today_blue_events.append(title_txt)
-                    
-                    if any(member in name_txt for member in yellow_team):
-                        if title_txt and title_txt not in today_yellow_events:
-                            today_yellow_events.append(title_txt)
+    # Filter Logic (today's events - only ever matches the current month)
+    blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
+    yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
+    green_team = ["김준엽", "이학주", "현태화", "곽진수", "이창환"]
+    red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"]
 
-                    if any(member in name_txt for member in green_team):
-                        if title_txt and title_txt not in today_green_events:
-                            today_green_events.append(title_txt)
-                            
-                    if any(member in name_txt for member in red_team):
-                        if title_txt and title_txt not in today_red_events:
-                            today_red_events.append(title_txt)
+    print(f"[DEBUG] Processed {len(grid_month0)} rows in Python.")
 
+    for row in grid_month0:
+        if len(row) < 3: continue
 
-        else:
-            print("[ERROR] Table not found for data extraction.")
+        date_txt = row[0]['text']
+        name_txt = row[-1]['text']
+        title_txt = row[2]['text'] if len(row) > 2 else row[1]['text']
 
-    except Exception as e:
-        print(f"[ERROR] Python calculation failed: {e}")
+        clean_date = re.sub(r'\s+', '', date_txt)
+        nums = re.findall(r'\d+', clean_date)
+
+        if len(nums) < 2: continue
+
+        m = int(nums[0])
+        d = int(nums[1])
+
+        if len(nums) >= 3 and int(nums[0]) > 2000:
+            m = int(nums[1])
+            d = int(nums[2])
+
+        if m == now.month and d == now.day:
+            if any(member in name_txt for member in blue_team):
+                if title_txt and title_txt not in today_blue_events:
+                    today_blue_events.append(title_txt)
+
+            if any(member in name_txt for member in yellow_team):
+                if title_txt and title_txt not in today_yellow_events:
+                    today_yellow_events.append(title_txt)
+
+            if any(member in name_txt for member in green_team):
+                if title_txt and title_txt not in today_green_events:
+                    today_green_events.append(title_txt)
+
+            if any(member in name_txt for member in red_team):
+                if title_txt and title_txt not in today_red_events:
+                    today_red_events.append(title_txt)
 
     print(f"[DEBUG] Blue: {len(today_blue_events)}, Yellow: {len(today_yellow_events)}, Green: {len(today_green_events)}, Red: {len(today_red_events)}")
+
+    # ------------------------------------------------------------------
+    # 6b. [NEW] Also collect next month, so the day-navigator (◀ 어제 / 내일 ▶)
+    #     still has data once someone browses past the end of this month.
+    # ------------------------------------------------------------------
+    print("6b. Navigating forward to also collect next month...")
+    try:
+        click_next_month()
+        grid_month1 = fetch_flatten_grid()
+        if grid_month1:
+            # Drop next month's own header row (index 0) so it isn't duplicated.
+            final_grid_data = grid_month0 + grid_month1[1:]
+            print(f"[DEBUG] Combined grid rows: this month {len(grid_month0)} + next month {len(grid_month1) - 1} = {len(final_grid_data)}")
+        else:
+            print("[DEBUG] Next month extraction returned no data, keeping current month only.")
+    except Exception as e:
+        print(f"[ERROR] Failed to navigate/extract next month: {e}")
 
     # ------------------------------------------------------------------
     # 7. Create resource.html
