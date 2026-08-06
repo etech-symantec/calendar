@@ -53,20 +53,48 @@ def run(playwright):
 
     print("✅ Page entry successful! Waiting for data loading...")
     time.sleep(5)
-    
+
     # ------------------------------------------------------------------
-    # 5. Extract HTML for Dashboard (Keep existing logic)
+    # [NEW] Helpers for multi-month navigation (fc-next-button)
     # ------------------------------------------------------------------
-    print("5. Extracting Dashboard HTML...")
-    extracted_html = ""
-    try:
-        extracted_html = frame.locator('#customListMonthDiv').inner_html(timeout=10000)
-    except Exception as e:
-        print(f"[DEBUG] Extraction error: {e}")
+    def extract_month_html():
+        """Grab current #customListMonthDiv content (frame first, then page)."""
         try:
-            extracted_html = page.locator('#customListMonthDiv').inner_html(timeout=10000)
-        except:
-            extracted_html = "<p>Failed to load data.</p>"
+            return frame.locator('#customListMonthDiv').inner_html(timeout=10000)
+        except Exception as e:
+            print(f"[DEBUG] Frame extraction error: {e}")
+            try:
+                return page.locator('#customListMonthDiv').inner_html(timeout=10000)
+            except Exception as e2:
+                print(f"[DEBUG] Page extraction error: {e2}")
+                return None
+
+    def click_next_month():
+        """Click FullCalendar's 'next month' button, then wait for reload."""
+        print("   ↪️  Clicking next month (.fc-next-button)...")
+        try:
+            frame.locator('.fc-next-button').click(timeout=10000)
+        except Exception as e:
+            print(f"[DEBUG] Frame next-button click failed ({e}), trying page-level locator...")
+            page.locator('.fc-next-button').click(timeout=10000)
+        time.sleep(3)
+        try:
+            page.wait_for_load_state('networkidle')
+        except Exception:
+            pass
+
+    def month_label(base_dt, offset):
+        """Return a 'YYYY년 M월' label for base_dt + offset months (handles year rollover)."""
+        total = base_dt.month - 1 + offset
+        year = base_dt.year + total // 12
+        month = total % 12 + 1
+        return f"{year}년 {month}월"
+
+    # ------------------------------------------------------------------
+    # 5. Extract HTML for Dashboard (current month)
+    # ------------------------------------------------------------------
+    print("5. Extracting Dashboard HTML (current month)...")
+    extracted_html = extract_month_html() or "<p>Failed to load data.</p>"
 
     # ------------------------------------------------------------------
     # 6. [NEW] Python-side Calculation for Jandi
@@ -85,6 +113,7 @@ def run(playwright):
     today_blue_events = []
     today_yellow_events = []
     today_green_events = []
+    today_orange_events = []
     
     try:
         # 1. Locate the table
@@ -210,6 +239,31 @@ def run(playwright):
     print(f"[DEBUG] Final list for Jandi: {today_blue_events}")
 
     # ------------------------------------------------------------------
+    # 6b. [NEW] Navigate forward and collect next 2 months as well
+    #     (Jandi "today" notification logic above still only looks at
+    #      the current month, since only today's date can ever match.)
+    # ------------------------------------------------------------------
+    print("6b. Navigating forward to collect the next 2 months...")
+    monthly_blocks = [(month_label(now, 0), extracted_html)]
+
+    for offset in (1, 2):
+        try:
+            click_next_month()
+            html_block = extract_month_html()
+            if html_block:
+                monthly_blocks.append((month_label(now, offset), html_block))
+                print(f"[DEBUG] Collected +{offset} month ({month_label(now, offset)}).")
+            else:
+                print(f"[DEBUG] +{offset} month extraction returned empty, skipping.")
+        except Exception as e:
+            print(f"[ERROR] Failed to navigate/extract +{offset} month: {e}")
+
+    extracted_html = "".join(
+        f'<div class="month-block"><h4 class="month-label">📅 {label}</h4>{html}</div>'
+        for label, html in monthly_blocks
+    )
+
+    # ------------------------------------------------------------------
     # 7. Create index.html
     # ------------------------------------------------------------------
     html_template = f"""
@@ -262,6 +316,9 @@ def run(playwright):
             .summary-box ul {{ margin: 0; padding-left: 20px; line-height: 1.5; color: #333; }}
             .summary-box li {{ padding: 3px 0; border-bottom: 1px dashed #ffe4e6; }}
             .table-container {{ background: #fff; padding: 10px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; max-height: 80vh; }}
+            .month-block {{ margin-bottom: 22px; }}
+            .month-block:last-child {{ margin-bottom: 0; }}
+            .month-label {{ margin: 0 0 8px 0; padding: 6px 12px; background:#eef2ff; color:#3730a3; border-radius:6px; font-size:12px; display:inline-block; }}
             table {{ border-collapse: collapse !important; width: 100% !important; }}
             table, th, td {{ border: 1px solid #d1d5db !important; padding: 6px 8px !important; text-align: center; white-space: nowrap; font-size: 11px; }}
             th {{ background-color: #e5e7eb !important; font-weight: bold !important; position: sticky; top: 0; z-index: 10; color: #374151; }}
@@ -309,9 +366,7 @@ def run(playwright):
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "박상준"];
             const orangeTeam = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"];
             
-            document.addEventListener("DOMContentLoaded", function() {{
-                const table = document.querySelector('#wrapper table');
-                if(!table) return;
+            function flattenTable(table) {{
                 const trs = Array.from(table.rows);
                 const grid = [];
                 trs.forEach((tr, r) => {{
@@ -336,64 +391,78 @@ def run(playwright):
                     newBody += '</tr>';
                 }}
                 table.innerHTML = newBody + '</tbody>';
+            }}
+
+            document.addEventListener("DOMContentLoaded", function() {{
+                document.querySelectorAll('#wrapper table').forEach(flattenTable);
                 applyFilter('blue');
             }});
 
+            // Runs the team filter across every month table under #wrapper
+            // (this month + the next 2 months), and rebuilds the "today" list
+            // by checking each table's date column against today's date.
             function applyFilter(team) {{
                 document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
                 document.querySelector(`.btn-${{team}}`).classList.add('active');
-                const rows = Array.from(document.querySelectorAll('#wrapper tbody tr'));
-                rows.forEach(r => {{
-                    r.classList.remove('hidden-row');
-                    r.style.backgroundColor = '';
-                    const first = r.children[0];
-                    first.classList.remove('hidden-cell');
-                    first.setAttribute('rowspan', 1);
-                    Array.from(r.children).forEach(c => {{ c.style.color = ''; c.style.fontWeight = ''; }});
-                }});
-                let visible = rows.filter(r => {{
-                    const name = r.cells[r.cells.length-1].innerText.trim();
-                    if(team === 'all') return true;
-                    if(team === 'blue') return blueTeam.some(m => name.includes(m));
-                    if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
-                    if(team === 'green') return greenTeam.some(m => name.includes(m));
-                    if(team === 'orange') return orangeTeam.some(m => name.includes(m));
-                    return false;
-                }});
-                rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
-                if(visible.length > 0) {{
-                    let lastCell = visible[0].cells[0], lastText = lastCell.innerText.trim(), count = 1;
-                    for(let i=1; i<visible.length; i++) {{
-                        const cur = visible[i].cells[0], curText = cur.innerText.trim();
-                        if(curText === lastText && curText !== "") {{ cur.classList.add('hidden-cell'); count++; lastCell.setAttribute('rowspan', count); }}
-                        else {{ lastCell = cur; lastText = curText; count = 1; }}
-                    }}
-                }}
+
                 const today = new Date(), tM = today.getMonth()+1, tD = today.getDate();
                 const list = document.getElementById('today-list'); list.innerHTML = '';
-                let todayCount = 0, currentIsToday = false;
-                visible.forEach(r => {{
-                    const dateCell = r.cells[0];
-                    if(!dateCell.classList.contains('hidden-cell')) {{
-                        const nums = dateCell.innerText.match(/\\d+/g);
-                        if(nums && nums.length >= 2) {{
-                            let m = parseInt(nums[0]), d = parseInt(nums[1]);
-                            if(nums.length>=3 && parseInt(nums[0])>2000) {{ m=parseInt(nums[1]); d=parseInt(nums[2]); }}
-                            currentIsToday = (m === tM && d === tD);
+                let todayCount = 0;
+
+                document.querySelectorAll('#wrapper table').forEach(table => {{
+                    const rows = Array.from(table.querySelectorAll('tbody tr'));
+                    rows.forEach(r => {{
+                        r.classList.remove('hidden-row');
+                        r.style.backgroundColor = '';
+                        const first = r.children[0];
+                        first.classList.remove('hidden-cell');
+                        first.setAttribute('rowspan', 1);
+                        Array.from(r.children).forEach(c => {{ c.style.color = ''; c.style.fontWeight = ''; }});
+                    }});
+                    let visible = rows.filter(r => {{
+                        const name = r.cells[r.cells.length-1].innerText.trim();
+                        if(team === 'all') return true;
+                        if(team === 'blue') return blueTeam.some(m => name.includes(m));
+                        if(team === 'yellow') return yellowTeam.some(m => name.includes(m));
+                        if(team === 'green') return greenTeam.some(m => name.includes(m));
+                        if(team === 'orange') return orangeTeam.some(m => name.includes(m));
+                        return false;
+                    }});
+                    rows.forEach(r => {{ if(!visible.includes(r)) r.classList.add('hidden-row'); }});
+                    if(visible.length > 0) {{
+                        let lastCell = visible[0].cells[0], lastText = lastCell.innerText.trim(), count = 1;
+                        for(let i=1; i<visible.length; i++) {{
+                            const cur = visible[i].cells[0], curText = cur.innerText.trim();
+                            if(curText === lastText && curText !== "") {{ cur.classList.add('hidden-cell'); count++; lastCell.setAttribute('rowspan', count); }}
+                            else {{ lastCell = cur; lastText = curText; count = 1; }}
                         }}
                     }}
-                    if(currentIsToday) {{
-                        r.style.backgroundColor = '#fff1f2';
-                        Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
-                        const tds = r.querySelectorAll('td');
-                        if (tds.length >= 3) {{
-                            const title = tds[1].innerText.trim();
-                            const li = document.createElement('li');
-                            li.innerText = title; 
-                            list.appendChild(li); todayCount++;
+
+                    let currentIsToday = false;
+                    visible.forEach(r => {{
+                        const dateCell = r.cells[0];
+                        if(!dateCell.classList.contains('hidden-cell')) {{
+                            const nums = dateCell.innerText.match(/\\d+/g);
+                            if(nums && nums.length >= 2) {{
+                                let m = parseInt(nums[0]), d = parseInt(nums[1]);
+                                if(nums.length>=3 && parseInt(nums[0])>2000) {{ m=parseInt(nums[1]); d=parseInt(nums[2]); }}
+                                currentIsToday = (m === tM && d === tD);
+                            }}
                         }}
-                    }}
+                        if(currentIsToday) {{
+                            r.style.backgroundColor = '#fff1f2';
+                            Array.from(r.cells).forEach(c => {{ c.style.color = '#9f1239'; c.style.fontWeight = 'bold'; }});
+                            const tds = r.querySelectorAll('td');
+                            if (tds.length >= 3) {{
+                                const title = tds[1].innerText.trim();
+                                const li = document.createElement('li');
+                                li.innerText = title;
+                                list.appendChild(li); todayCount++;
+                            }}
+                        }}
+                    }});
                 }});
+
                 if(todayCount === 0) list.innerHTML = '<li>선택된 팀의 오늘 일정이 없습니다. 🎉</li>';
             }}
         </script>
@@ -415,8 +484,8 @@ def run(playwright):
         if weekday_index >= 5:
             print(f"📭 [JANDI] 오늘은 주말({weekday_str}요일)이라 알림을 보내지 않습니다.")
             
-        # 둘 중 하나라도 일정이 있으면 전송
-        elif today_blue_events or today_yellow_events:
+        # 셋 중 하나라도 일정이 있으면 전송
+        elif today_blue_events or today_yellow_events or today_orange_events:
             print(f"🚀 [JANDI] Sending Combined Schedule...")
             
             # 메시지 작성 시작
@@ -424,21 +493,21 @@ def run(playwright):
             
             # 🟦 블루팀 섹션 (일정이 있는 경우에만)
             if today_blue_events:
-                body_text += "🟦 **[블루팀]**\n"
+                body_text += "🟦 **[SSE시만텍/네트워크보안]**\n"
                 for item in today_blue_events:
                     body_text += f"- {item}\n"
                 body_text += "\n" # 줄바꿈
 
             # 🟧 오렌지팀 섹션 (일정이 있는 경우에만)
             if today_orange_events:
-                body_text += "🟧 **[오렌지팀]**\n"
+                body_text += "🟧 **[SSE팔로알토/SASE]**\n"
                 for item in today_orange_events:
                     body_text += f"- {item}\n"
                 body_text += "\n" # 줄바꿈
 
             # 🟨 옐로우팀 섹션 (일정이 있는 경우에만)
             if today_yellow_events:
-                body_text += "🟨 **[옐로우팀]**\n"
+                body_text += "🟨 **[SDE시만텍/엔드포인트보안]**\n"
                 for item in today_yellow_events:
                     body_text += f"- {item}\n"
 
