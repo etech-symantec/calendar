@@ -149,6 +149,7 @@ def run(playwright):
     today_yellow_events = []
     today_green_events = []
     today_red_events = []
+    today_orange_events = []
     final_grid_data = []
 
     def fetch_flatten_grid():
@@ -245,6 +246,7 @@ def run(playwright):
     yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
     green_team = ["김준엽", "이학주", "현태화", "곽진수", "이창환"]
     red_team = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"]
+    orange_team = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"]
 
     print(f"[DEBUG] Processed {len(grid_month0)} rows in Python.")
 
@@ -284,7 +286,11 @@ def run(playwright):
                 if title_txt and title_txt not in today_red_events:
                     today_red_events.append(title_txt)
 
-    print(f"[DEBUG] Blue: {len(today_blue_events)}, Yellow: {len(today_yellow_events)}, Green: {len(today_green_events)}, Red: {len(today_red_events)}")
+            if any(member in name_txt for member in orange_team):
+                if title_txt and title_txt not in today_orange_events:
+                    today_orange_events.append(title_txt)
+
+    print(f"[DEBUG] Blue: {len(today_blue_events)}, Yellow: {len(today_yellow_events)}, Green: {len(today_green_events)}, Red: {len(today_red_events)}, Orange: {len(today_orange_events)}")
 
     # ------------------------------------------------------------------
     # 6b. [NEW] Also collect next month, so the day-navigator (◀ 어제 / 내일 ▶)
@@ -352,6 +358,8 @@ def run(playwright):
 
             .btn-red {{ background-color: #FBEFEF; color: #c53030; border: 1px solid #fca5a5; }}
             .btn-red.active, .btn-red:hover {{ background-color: #ef4444; color: white; }}
+            .btn-orange {{ background-color: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }}
+            .btn-orange.active, .btn-orange:hover {{ background-color: #f97316; color: white; }}
 
             .btn-all {{ background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }}
             .btn-all.active, .btn-all:hover {{ background-color: #6b7280; color: white; }}
@@ -488,6 +496,15 @@ def run(playwright):
             }}
             .timeline-event-bar.red:hover {{ background-color: #fee2e2 !important; }}
             
+            .timeline-event-bar.orange {{ 
+                background-color: #ffedd5 !important; 
+                border-color: #fed7aa !important; 
+                color: #9a3412 !important; 
+                font-size: 12px !important; 
+                font-weight: bold !important; 
+            }}
+            .timeline-event-bar.orange:hover {{ background-color: #fff7ed !important; }}
+            
             /* 🌟 [수정됨] 미니맵 툴팁 스타일 (스크린샷 기반 17/18층 완벽 구현) */
             .minimap-tooltip {{ position: fixed; background: #ffffff; border: 2px solid #cbd5e1; box-shadow: 0 10px 25px rgba(0,0,0,0.2); padding: 20px; border-radius: 8px; z-index: 99999; display: none; pointer-events: none; }}
             .minimap-title {{ font-size: 13px; font-weight: bold; color: #334155; margin-bottom: 15px; text-align: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }}
@@ -547,6 +564,7 @@ def run(playwright):
                         <button class="btn btn-yellow" onclick="applyFilter('yellow')">🟡 옐로우팀</button>
                         <button class="btn btn-green" onclick="applyFilter('green')">🟢 그린팀</button>
                         <button class="btn btn-red" onclick="applyFilter('red')">🔴 영업팀</button>
+                        <button class="btn btn-orange" onclick="applyFilter('orange')">🟠 오렌지팀</button>
                         <button class="btn btn-all" onclick="applyFilter('all')">📋 전체보기</button>
                     </div>
                 </div>
@@ -624,6 +642,7 @@ def run(playwright):
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "이창환"];
             const redTeam = ["이병서", "이승훈1", "한혜민", "선혜선", "이다경", "김기태", "조성훈", "최정인", "김민혁", "최성복"];
+            const orangeTeam = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"];
 
             // 🌟 현재 타임라인이 보여주는 날짜 변수
             let currentTimelineDate = new Date();
@@ -685,6 +704,7 @@ def run(playwright):
                     if(team === 'yellow' && yellowTeam.some(m => name.includes(m))) isVisible = true;
                     if(team === 'green' && greenTeam.some(m => name.includes(m))) isVisible = true;
                     if(team === 'red' && redTeam.some(m => name.includes(m))) isVisible = true;
+                    if(team === 'orange' && orangeTeam.some(m => name.includes(m))) isVisible = true;
 
                     if(isVisible) {{
                         r.classList.remove('hidden-row');
@@ -950,6 +970,7 @@ def run(playwright):
                         else if (yellowTeam.some(m => event.name.includes(m))) bar.classList.add('yellow');
                         else if (greenTeam.some(m => event.name.includes(m))) bar.classList.add('green');
                         else if (redTeam.some(m => event.name.includes(m))) bar.classList.add('red');
+                        else if (orangeTeam.some(m => event.name.includes(m))) bar.classList.add('orange');
 
                         if (event.category === 0) bar.classList.add('vehicle');
                         if (event.category === 2 || event.category === 3) bar.classList.add('rest');
