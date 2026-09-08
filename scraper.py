@@ -173,10 +173,10 @@ def run(playwright):
                     c_idx += colspan
 
             # 4. Filter Logic (Python)
-            blue_team = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"]
+            blue_team = ["신호근", "김상문", "홍진영", "윤태리", "박동석"]
             yellow_team = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"]
             green_team = ["김준엽", "이학주", "현태화", "곽진수", "박상준"]
-            orange_team = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"]
+            orange_team = ["이호진", "강성준", "김현경", "양수진", "박정민", "김준기", "우주혁"]
             
             print(f"[DEBUG] Processed {len(grid)} rows in Python.")
             
@@ -363,10 +363,10 @@ def run(playwright):
             <div class="table-container" id="wrapper">{extracted_html}</div>
         </div>
         <script>
-            const blueTeam = ["신호근", "김상문", "홍진영", "강성준", "윤태리", "박동석"];
+            const blueTeam = ["신호근", "김상문", "홍진영", "윤태리", "박동석"];
             const yellowTeam = ["백창렬", "권민주", "황현석", "이희찬", "이수재", "이윤재"];
             const greenTeam = ["김준엽", "이학주", "현태화", "곽진수", "박상준"];
-            const orangeTeam = ["이호진", "김현경", "양수진", "박정민", "김준기", "우주혁"];
+            const orangeTeam = ["이호진", "강성준", "김현경", "양수진", "박정민", "김준기", "우주혁"];
             
             function flattenTable(table) {{
                 const trs = Array.from(table.rows);
